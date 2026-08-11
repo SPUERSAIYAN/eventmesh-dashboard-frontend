@@ -1,0 +1,44 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { createResourceRepository, resourceEndpoints } from "../src/api/resourceRepository.js";
+
+function mysqlBackedClient() {
+  return {
+    async post(url, body) {
+      if (url === resourceEndpoints.clusters) return { data: { data: [{ id: 1, name: "east" }, { id: 2, name: "west" }] } };
+      if (url === resourceEndpoints.topics) return { data: { data: [{ id: body.clusterId * 10, clusterId: body.clusterId, topicName: `topic-${body.clusterId}` }] } };
+      if (url === resourceEndpoints.groups) return { data: { data: [{ id: body.clusterId * 20, clusterId: body.clusterId, name: `group-${body.clusterId}` }] } };
+      if (url === resourceEndpoints.runtimes) return { data: { data: [{ id: body.clusterId * 30, clusterId: body.clusterId }] } };
+      if (url === resourceEndpoints.connections) return { data: { data: [{ id: 1, clusterId: 1, clientHost: "10.0.0.1" }] } };
+      if (url === resourceEndpoints.operations) return { data: { data: [{ id: 1, clusterId: 2, content: "Created topic" }] } };
+      throw new Error(`unexpected endpoint ${url}`);
+    },
+  };
+}
+
+test("aggregates topic rows from every database-backed cluster", async () => {
+  const repository = createResourceRepository(mysqlBackedClient());
+  const result = await repository.getTopics();
+
+  assert.equal(result.data.length, 2);
+  assert.deepEqual(result.data.map((item) => item.clusterName), ["east", "west"]);
+  assert.deepEqual(result.data.map((item) => item.topicName), ["topic-1", "topic-2"]);
+});
+
+test("joins connection and operation rows with cluster names", async () => {
+  const repository = createResourceRepository(mysqlBackedClient());
+  const [connections, operations] = await Promise.all([repository.getConnections(), repository.getOperations()]);
+
+  assert.equal(connections.data[0].clusterName, "east");
+  assert.equal(operations.data[0].clusterName, "west");
+});
+
+test("overview counts only values returned by backend endpoints", async () => {
+  const repository = createResourceRepository(mysqlBackedClient());
+  const result = await repository.getOverview();
+
+  assert.equal(result.clusters.length, 2);
+  assert.equal(result.resources.reduce((sum, item) => sum + item.runtimes, 0), 2);
+  assert.equal(result.connections.length, 1);
+  assert.equal(result.operations.length, 1);
+});
