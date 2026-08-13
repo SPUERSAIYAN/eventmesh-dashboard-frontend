@@ -48,7 +48,8 @@ export function unwrapPayload(payload) {
 }
 
 export function parseArray(schema, payload, label) {
-  const parsed = schema.array().safeParse(unwrapPayload(payload));
+  const unwrapped = unwrapPayload(payload);
+  const parsed = schema.array().safeParse(unwrapped == null ? [] : unwrapped);
   if (!parsed.success) throw new Error(`${label} response does not match the backend contract`);
   return parsed.data;
 }

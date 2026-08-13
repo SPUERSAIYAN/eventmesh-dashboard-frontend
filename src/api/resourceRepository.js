@@ -1,5 +1,6 @@
 import { apiClient } from "./client.js";
 import { apiConfig } from "./config.js";
+import { activeOrganizationId } from "./session.js";
 import { unwrapPayload } from "./contracts.js";
 
 export const resourceEndpoints = Object.freeze({
@@ -13,12 +14,13 @@ export const resourceEndpoints = Object.freeze({
 
 function listPayload(response, label) {
   const data = unwrapPayload(response.data);
+  if (data == null) return [];
   if (!Array.isArray(data)) throw new Error(`${label} API did not return a list`);
   return data;
 }
 
 function clusterBody() {
-  return { organizationId: apiConfig.organizationId, clusterType: apiConfig.clusterType };
+  return { organizationId: activeOrganizationId() ?? apiConfig.organizationId, clusterType: apiConfig.clusterType };
 }
 
 function withCluster(items, cluster) {
@@ -36,7 +38,7 @@ export function createResourceRepository(client = apiClient) {
     const lists = await Promise.all(clusters.map(async (cluster) => {
       const response = await client.post(endpoint, {
         clusterId: cluster.id,
-        organizationId: apiConfig.organizationId,
+        organizationId: activeOrganizationId() ?? apiConfig.organizationId,
         clusterType: apiConfig.clusterType,
         ...extra,
       });
@@ -57,36 +59,18 @@ export function createResourceRepository(client = apiClient) {
     },
 
     async getConnections() {
-      const [clusters, response] = await Promise.all([
-        getClusters(),
-        client.post(resourceEndpoints.connections, {}),
-      ]);
-      const names = new Map(clusters.map((cluster) => [String(cluster.id), cluster.name]));
-      const data = listPayload(response, "Connections").map((item) => ({
-        ...item,
-        clusterName: names.get(String(item.clusterId)) ?? `Cluster #${item.clusterId}`,
-      }));
-      return { clusters, data };
+      return getClusterResources(resourceEndpoints.connections, "Connections");
     },
 
-    async getOperations(clusterId = null) {
-      const [clusters, response] = await Promise.all([
-        getClusters(),
-        client.post(resourceEndpoints.operations, clusterId ? { clusterId } : {}),
-      ]);
-      const names = new Map(clusters.map((cluster) => [String(cluster.id), cluster.name]));
-      const data = listPayload(response, "Operations").map((item) => ({
-        ...item,
-        clusterName: names.get(String(item.clusterId)) ?? `Cluster #${item.clusterId}`,
-      }));
-      return { clusters, data };
+    async getOperations() {
+      return getClusterResources(resourceEndpoints.operations, "Operations");
     },
 
-    async getOverview() {
+    async getOverview({ includeOperations = true } = {}) {
       const clusters = await getClusters();
-      const [resources, connectionsResponse, operationsResponse] = await Promise.all([
+      const [resources, connectionLists, operationLists] = await Promise.all([
         Promise.all(clusters.map(async (cluster) => {
-          const body = { clusterId: cluster.id, organizationId: apiConfig.organizationId, clusterType: apiConfig.clusterType };
+          const body = { clusterId: cluster.id, organizationId: activeOrganizationId() ?? apiConfig.organizationId, clusterType: apiConfig.clusterType };
           const [runtimes, topics, groups] = await Promise.all([
             client.post(resourceEndpoints.runtimes, body),
             client.post(resourceEndpoints.topics, { ...body, topicName: null }),
@@ -99,14 +83,14 @@ export function createResourceRepository(client = apiClient) {
             groups: listPayload(groups, "Consumer groups").length,
           };
         })),
-        client.post(resourceEndpoints.connections, {}),
-        client.post(resourceEndpoints.operations, {}),
+        Promise.all(clusters.map((cluster) => client.post(resourceEndpoints.connections, { clusterId: cluster.id }).then((response) => withCluster(listPayload(response, "Connections"), cluster)))),
+        includeOperations ? Promise.all(clusters.map((cluster) => client.post(resourceEndpoints.operations, { clusterId: cluster.id }).then((response) => withCluster(listPayload(response, "Operations"), cluster)))) : Promise.resolve([]),
       ]);
       return {
         clusters,
         resources,
-        connections: listPayload(connectionsResponse, "Connections"),
-        operations: listPayload(operationsResponse, "Operations"),
+        connections: connectionLists.flat(),
+        operations: operationLists.flat(),
       };
     },
   };
