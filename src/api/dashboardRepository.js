@@ -1,7 +1,7 @@
 import { apiClient } from "./client.js";
 import { apiConfig } from "./config.js";
-import { clusterEntitySchema, healthProportionSchema, parseArray, parseObject, runtimeEntitySchema } from "./contracts.js";
-import { clusters as mockClusters, recentChanges, runtimes as mockRuntimes } from "../data/dashboard.js";
+import { activeOrganizationId } from "./session.js";
+import { clusterEntitySchema, healthProportionSchema, parseArray, parseObject, runtimeEntitySchema, unwrapPayload } from "./contracts.js";
 import { z } from "zod";
 
 const passthroughItemSchema = z.unknown();
@@ -14,6 +14,7 @@ export const dashboardEndpoints = Object.freeze({
   health: "/cluster/health/getInstanceLiveProportion",
   connections: "/netConnection",
   operations: "/cluster/log/getList",
+  createCluster: "/organization/activeCreate/createCluster",
 });
 
 function errorMessage(error) {
@@ -64,10 +65,19 @@ function mapRuntime(entity, index, connectionCounts = new Map()) {
   };
 }
 
+function jsonObject(value) {
+  if (!value) return {};
+  if (typeof value === "object") return value;
+  try { return JSON.parse(value); } catch { return {}; }
+}
+
 function clusterConfig(entity) {
-  if (!entity?.config) return {};
-  if (typeof entity.config === "object") return entity.config;
-  try { return JSON.parse(entity.config); } catch { return {}; }
+  return jsonObject(entity?.config);
+}
+
+function metricRate(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? `${parsed.toFixed(1)}K` : null;
 }
 
 function mapOperation(item) {
@@ -96,6 +106,7 @@ function mapCluster(entity, index, enrichment = {}) {
     status: abnormalChecks > 0 ? "Warning" : normalizeStatus(entity.status ?? entity.deployStatusType, "Warning"),
     score,
     version: entity.version ?? "—",
+    description: entity.description ?? "—",
     clusterId: backendId ? `#${backendId}` : "—",
     uptime: uptimeFrom(entity.startTimestamp ?? entity.onlineTimestamp, "—"),
     created: formatDate(entity.createTime, "—"),
@@ -117,10 +128,9 @@ async function settled(loader) {
   }
 }
 
-function sourceFrom(results, alwaysMockFields = false) {
+function sourceFrom(results, hasUnavailableFields = false) {
   const values = Object.values(results);
-  if (!values.some((result) => result?.ok)) return "mock";
-  if (alwaysMockFields || values.some((result) => !result?.ok)) return "mixed";
+  if (hasUnavailableFields || values.some((result) => !result?.ok)) return "mixed";
   return "live";
 }
 
@@ -128,41 +138,26 @@ function fallbackReason(results) {
   return Object.entries(results).filter(([, result]) => result && !result.ok).map(([name, result]) => `${name}: ${result.error}`).join("; ") || null;
 }
 
-function mockListResult(reason = null) {
-  return {
-    data: mockClusters.map((cluster) => ({ ...cluster, backendId: null })),
-    meta: { source: "mock", fallbackReason: reason, sources: { clusters: "mock" }, fetchedAt: new Date().toISOString() },
-  };
-}
-
-function mockDetailResult(routeId, reason = null) {
-  const cluster = mockClusters.find((item) => item.id === routeId) ?? mockClusters[0];
-  return {
-    data: { cluster: { ...cluster, backendId: null }, runtimes: mockRuntimes.map((runtime) => ({ ...runtime, name: runtime.id, status: "Healthy" })), topicCount: cluster.topics, groupCount: cluster.groups, recentChanges },
-    meta: { source: "mock", fallbackReason: reason, sources: { cluster: "mock", runtimes: "mock", topics: "mock", groups: "mock", health: "mock", throughput: "mock", changes: "mock" }, fetchedAt: new Date().toISOString() },
-  };
-}
-
 export function createDashboardRepository(client = apiClient) {
-  const clusterBody = { organizationId: apiConfig.organizationId, clusterType: apiConfig.clusterType };
+  const organizationId = () => activeOrganizationId() ?? apiConfig.organizationId;
 
   async function fetchClusterEntities() {
-    const response = await client.post(dashboardEndpoints.clusters, clusterBody);
+    const response = await client.post(dashboardEndpoints.clusters, { organizationId: organizationId(), clusterType: apiConfig.clusterType });
     return parseArray(clusterEntitySchema, response.data, "cluster list");
   }
 
   async function fetchRuntimes(clusterId) {
-    const response = await client.post(dashboardEndpoints.runtimes, { clusterId, organizationId: apiConfig.organizationId, clusterType: apiConfig.clusterType });
+    const response = await client.post(dashboardEndpoints.runtimes, { clusterId, organizationId: organizationId(), clusterType: apiConfig.clusterType });
     return parseArray(runtimeEntitySchema, response.data, "runtime list");
   }
 
   async function fetchTopics(clusterId) {
-    const response = await client.post(dashboardEndpoints.topics, { clusterId, organizationId: apiConfig.organizationId, clusterType: apiConfig.clusterType, topicName: null });
+    const response = await client.post(dashboardEndpoints.topics, { clusterId, organizationId: organizationId(), clusterType: apiConfig.clusterType, topicName: null });
     return parseArray(passthroughItemSchema, response.data, "topic list");
   }
 
   async function fetchGroups(clusterId) {
-    const response = await client.post(dashboardEndpoints.groups, { clusterId, organizationId: apiConfig.organizationId, clusterType: apiConfig.clusterType });
+    const response = await client.post(dashboardEndpoints.groups, { clusterId, organizationId: organizationId(), clusterType: apiConfig.clusterType });
     return parseArray(passthroughItemSchema, response.data, "group list");
   }
 
@@ -181,12 +176,12 @@ export function createDashboardRepository(client = apiClient) {
     return parseArray(passthroughItemSchema, response.data, "operation list");
   }
 
-  async function enrich(entity, index = 0) {
+  async function enrich(entity, index = 0, { includeOperations = true } = {}) {
     const clusterId = numberId(entity.id ?? entity.clusterId);
     if (!clusterId) throw new Error("cluster response does not contain a numeric id");
     const [runtimesResult, topicsResult, groupsResult, healthResult, connectionsResult, operationsResult] = await Promise.all([
       settled(() => fetchRuntimes(clusterId)), settled(() => fetchTopics(clusterId)), settled(() => fetchGroups(clusterId)), settled(() => fetchHealth(clusterId)),
-      settled(() => fetchConnections(clusterId)), settled(() => fetchOperations(clusterId)),
+      settled(() => fetchConnections(clusterId)), includeOperations ? settled(() => fetchOperations(clusterId)) : Promise.resolve({ ok: false, skipped: true, error: "Not requested" }),
     ]);
     const results = { runtimes: runtimesResult, topics: topicsResult, groups: groupsResult, health: healthResult, connections: connectionsResult, operations: operationsResult };
     const cluster = mapCluster(entity, index, {
@@ -199,32 +194,42 @@ export function createDashboardRepository(client = apiClient) {
   }
 
   return {
+    async createCluster(input) {
+      const response = await client.post(dashboardEndpoints.createCluster, {
+        organizationId: organizationId(),
+        clusterType: input.clusterType || apiConfig.clusterType,
+        name: input.name.trim(),
+        version: input.version.trim(),
+        description: input.description.trim(),
+        firstToWhom: "DASHBOARD",
+        trusteeshipArrangeType: "SELF",
+      });
+      const id = unwrapPayload(response.data);
+      if (id == null || !["number", "string"].includes(typeof id)) throw new Error("Create cluster API did not return a cluster ID");
+      return { id: String(id), name: input.name.trim() };
+    },
+
     async getClusters() {
-      try {
-        const entities = await fetchClusterEntities();
+      const entities = await fetchClusterEntities();
         if (!entities.length) {
           return {
             data: [],
             meta: { source: "live", fallbackReason: null, sources: { clusters: "api", summaries: "api" }, fetchedAt: new Date().toISOString() },
           };
         }
-        const enriched = await Promise.all(entities.map((entity, index) => enrich(entity, index)));
+        const enriched = await Promise.all(entities.map((entity, index) => enrich(entity, index, { includeOperations: false })));
         const allResults = Object.fromEntries(enriched.flatMap(({ cluster, results }) => Object.entries(results).map(([key, value]) => [`${cluster.id}.${key}`, value])));
         return {
           data: enriched.map((item) => item.cluster),
           meta: { source: sourceFrom(allResults, true), fallbackReason: fallbackReason(allResults), sources: { clusters: "api", summaries: sourceFrom(allResults) }, fetchedAt: new Date().toISOString() },
         };
-      } catch (error) {
-        return mockListResult(errorMessage(error));
-      }
     },
 
-    async getClusterDashboard(routeId) {
-      try {
-        const entities = await fetchClusterEntities();
+    async getClusterDashboard(routeId, { includeOperations = true } = {}) {
+      const entities = await fetchClusterEntities();
         const entity = entities.find((item) => String(item.id ?? item.clusterId) === String(routeId) || item.name === routeId);
         if (!entity) throw new Error(`cluster ${routeId} was not returned by the API`);
-        const { cluster, results } = await enrich(entity, Math.max(0, entities.indexOf(entity)));
+        const { cluster, results } = await enrich(entity, Math.max(0, entities.indexOf(entity)), { includeOperations });
         const connectionCounts = new Map();
         if (results.connections.ok) results.connections.data.forEach((connection) => connectionCounts.set(String(connection.runtimeId), (connectionCounts.get(String(connection.runtimeId)) ?? 0) + 1));
         const runtimesData = results.runtimes.ok ? results.runtimes.data.map((runtime, index) => mapRuntime(runtime, index, connectionCounts)) : [];
@@ -234,6 +239,7 @@ export function createDashboardRepository(client = apiClient) {
             runtimes: runtimesData,
             topicCount: results.topics.ok ? results.topics.data.length : cluster.topics,
             groupCount: results.groups.ok ? results.groups.data.length : cluster.groups,
+            connectionCount: results.connections.ok ? results.connections.data.length : null,
             recentChanges: results.operations.ok ? results.operations.data.map(mapOperation) : [],
           },
           meta: {
@@ -245,19 +251,22 @@ export function createDashboardRepository(client = apiClient) {
               topics: results.topics.ok ? "api" : "unavailable",
               groups: results.groups.ok ? "api" : "unavailable",
               health: results.health.ok ? "api" : "unavailable",
-              throughput: "unavailable",
+              throughput: cluster.inbound && cluster.outbound ? "api" : "unavailable",
               changes: results.operations.ok ? "api" : "unavailable",
             },
             fetchedAt: new Date().toISOString(),
           },
         };
-      } catch (error) {
-        return mockDetailResult(routeId, errorMessage(error));
-      }
     },
   };
 }
 
 export const dashboardRepository = createDashboardRepository();
-export const clusterListPlaceholder = mockListResult();
-export const clusterDetailPlaceholder = (routeId) => mockDetailResult(routeId);
+export const clusterListPlaceholder = { data: [], meta: { source: "loading", fallbackReason: null, sources: {}, fetchedAt: null } };
+export const clusterDetailPlaceholder = (routeId) => ({
+  data: {
+    cluster: { id: String(routeId), name: String(routeId), status: "Unknown", score: null, version: "—", clusterId: "—", uptime: "—", created: "—", region: "—" },
+    runtimes: [], topicCount: 0, groupCount: 0, connectionCount: 0, recentChanges: [],
+  },
+  meta: { source: "loading", fallbackReason: null, sources: {}, fetchedAt: null },
+});

@@ -63,20 +63,14 @@ test("keeps successful endpoints when a sibling endpoint fails", async () => {
   assert.match(result.meta.fallbackReason, /topics unavailable/);
 });
 
-test("falls back to mock clusters when the dashboard API is unavailable", async () => {
+test("does not fall back to mock production data when the dashboard API is unavailable", async () => {
   const unavailableClient = {
     async post() { throw new Error("connect ECONNREFUSED 127.0.0.1:9898"); },
     async get() { throw new Error("should not be called"); },
   };
   const repository = createDashboardRepository(unavailableClient);
-  const list = await repository.getClusters();
-  const detail = await repository.getClusterDashboard("prod-eventmesh-east");
-
-  assert.equal(list.meta.source, "mock");
-  assert.equal(list.data[0].name, "prod-eventmesh-east");
-  assert.match(list.meta.fallbackReason, /ECONNREFUSED/);
-  assert.equal(detail.meta.source, "mock");
-  assert.equal(detail.data.runtimes.length, 6);
+  await assert.rejects(repository.getClusters(), /ECONNREFUSED/);
+  await assert.rejects(repository.getClusterDashboard("prod-eventmesh-east"), /ECONNREFUSED/);
 });
 
 test("treats an empty live cluster list as a valid API result", async () => {
@@ -88,4 +82,33 @@ test("treats an empty live cluster list as a valid API result", async () => {
 
   assert.equal(result.meta.source, "live");
   assert.deepEqual(result.data, []);
+});
+
+test("creates a basic cluster through the documented active-create endpoint", async () => {
+  let request;
+  const repository = createDashboardRepository({
+    async post(url, body) {
+      assert.equal(url, dashboardEndpoints.createCluster);
+      request = body;
+      return { data: { code: 200, data: 42 } };
+    },
+  });
+
+  const result = await repository.createCluster({
+    name: " dev-eventmesh-north ",
+    version: " 1.11.0 ",
+    clusterType: "EVENTMESH_JVM_CLUSTER",
+    description: " Development cluster ",
+  });
+
+  assert.deepEqual(result, { id: "42", name: "dev-eventmesh-north" });
+  assert.deepEqual(request, {
+    organizationId: 1,
+    clusterType: "EVENTMESH_JVM_CLUSTER",
+    name: "dev-eventmesh-north",
+    version: "1.11.0",
+    description: "Development cluster",
+    firstToWhom: "DASHBOARD",
+    trusteeshipArrangeType: "SELF",
+  });
 });

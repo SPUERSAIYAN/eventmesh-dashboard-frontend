@@ -1,0 +1,4 @@
+services:
+  mysql:
+    volumes:
+      - ../eventmesh-dashboard/eventmesh-dashboard-console/src/main/resources/eventmesh-dashboard-seed.sql:/docker-entrypoint-initdb.d/20-dev-seed.sql:ro
