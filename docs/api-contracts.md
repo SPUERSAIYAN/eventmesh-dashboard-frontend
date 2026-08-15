@@ -21,9 +21,14 @@ The production frontend calls the backend through the same-origin prefix `/event
 | Cluster list | `POST /user/cluster/queryClusterByOrganizationIdAndType` | `ClusterEntity[]` |
 | Basic cluster creation | `POST /organization/activeCreate/createCluster` | generated cluster ID |
 | Runtime list | `POST /runtime/queryRuntimeListByClusterId` | `RuntimeEntity[]` |
+| Cluster topology | `POST /user/cluster/queryTreeByClusterId` | `ClusterTreeVO[]` |
 | Topics | `POST /user/topic/queryTopicListByClusterId` | `TopicEntity[]` |
+| Create topic | `POST /user/topic/createTopic` | success/empty payload |
 | Consumer groups | `POST /user/group/queryGroupListByClusterId` | `GroupEntity[]` |
+| Delete consumer group | `POST /user/group/deleteGroupById` | affected row count |
 | Health | `GET /cluster/health/getInstanceLiveProportion` | `{ abnormalNum, allNum }` |
+| Health history | `GET /cluster/health/getHistoryLiveStatus` | `HealthCheckResultEntity[]` |
+| Read configuration | `POST /user/config/queryByInstanceId` | `ConfigEntity[]` |
 | Connections | `POST /netConnection` | `NetConnectionEntity[]` |
 | Operations | `POST /cluster/log/getList` | `LogEntity[]` |
 
@@ -44,5 +49,7 @@ The production profile enables the backend Decoration/PageHelper integration so 
 5. CPU, memory and throughput remain unavailable until typed backend contracts exist.
 6. Operation audit is never requested or rendered for organization members.
 7. Unsupported script, metadata-file and copy creation flows are not exposed.
+8. Cluster inventory is queried for EventMesh JVM, logical EventMesh, RocketMQ, and Kafka types. A failure for one type does not hide successful results from the others.
+9. Configuration remains read-only because the current update handler does not persist the submitted changes.
 
 The backend validates both `organizationId` and `clusterId`. Changing either identifier outside the active organization returns HTTP 403 for non-system users.

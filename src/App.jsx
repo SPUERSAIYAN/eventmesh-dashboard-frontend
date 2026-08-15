@@ -6,28 +6,32 @@ import {
   LinkOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
   ReloadOutlined, SearchOutlined, TeamOutlined, ToolOutlined, GlobalOutlined,
   CheckOutlined, CloseOutlined, LockOutlined, SafetyCertificateOutlined, LogoutOutlined, UserOutlined,
+  MonitorOutlined, SettingOutlined, PlusOutlined, DeleteOutlined, HistoryOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, ConfigProvider, Dropdown, Input, Modal, Pagination, Progress, Select, Spin, Tag, Tooltip } from "antd";
+import { Alert, Button, ConfigProvider, Dropdown, Input, InputNumber, Modal, Pagination, Progress, Select, Spin, Tabs, Tag, Tooltip } from "antd";
 import enUS from "antd/locale/en_US";
 import zhCN from "antd/locale/zh_CN";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import eventMeshLogo from "./assets/eventmesh-logo.svg";
 import { clusterDetailPlaceholder, clusterListPlaceholder, dashboardRepository } from "./api/dashboardRepository.js";
 import { apiClient } from "./api/client.js";
 import { unwrapPayload } from "./api/contracts.js";
 import { resourceRepository } from "./api/resourceRepository.js";
+import { TopologyExperience } from "./TopologyExperience.jsx";
 import { useAuth } from "./AuthProvider.jsx";
 import { useI18n } from "./i18n.jsx";
 import { usePermissions } from "./PermissionProvider.jsx";
 import { PERMISSIONS, ROLE_DEFINITIONS, roleCan } from "./permissions.js";
+import { clusterResourcePath, normalizeClusterView } from "./routes.js";
 
 const navItems = [
   { key: "overview", label: "Overview", icon: DashboardOutlined, path: "/overview" },
   { key: "clusters", label: "Clusters", icon: ClusterOutlined, path: "/clusters" },
   { key: "topics", label: "Topics", icon: AppstoreOutlined, path: "/topics" },
   { key: "groups", label: "Consumer Groups", icon: TeamOutlined, path: "/groups" },
-  { key: "connections", label: "Connections", icon: LinkOutlined, path: "/connections" },
+  { key: "connections", label: "Client Connections", icon: LinkOutlined, path: "/connections" },
+  { key: "monitoring", label: "Health Monitoring", icon: MonitorOutlined, path: "/monitoring" },
   { key: "operations", label: "Operations", icon: ToolOutlined, path: "/operations", permission: PERMISSIONS.VIEW_OPERATIONS },
   { key: "organization", label: "Members", icon: TeamOutlined, path: "/organization/members", permission: PERMISSIONS.MANAGE_MEMBERS },
 ];
@@ -55,7 +59,7 @@ function Shell({ children }) {
   const activeKey = location.pathname.split("/").filter(Boolean)[0] || "overview";
   const activeItem = navItems.find((item) => item.key === activeKey) ?? navItems[0];
   const isClusterDetail = activeKey === "clusters" && location.pathname !== "/clusters";
-  const detailLabel = decodeURIComponent(location.pathname.split("/").filter(Boolean).at(-1) || "");
+  const detailLabel = decodeURIComponent(location.pathname.split("/").filter(Boolean)[1] || "");
   const userMenu = {
     items: [
       { key: "identity", disabled: true, label: <span className="role-menu-item"><strong>{user?.displayName || user?.username}</strong><small>{t(roleDefinition.label)}</small></span> },
@@ -121,6 +125,10 @@ function StatusBar() {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(() => new Date());
+  const { data: apiStatus, isError: apiUnavailable } = useQuery({
+    queryKey: ["system", "hello"],
+    queryFn: () => apiClient.get("/hello").then(({ data }) => unwrapPayload(data)),
+  });
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1_000);
     return () => window.clearInterval(timer);
@@ -132,7 +140,7 @@ function StatusBar() {
   };
   return (
     <footer className="statusbar">
-      <span className="status-ok"><i />{t("All systems operational")}</span>
+      <span className={apiUnavailable ? "status-error" : "status-ok"}><i />{t(apiUnavailable ? "Dashboard API unavailable" : apiStatus == null ? "Checking Dashboard API" : "Dashboard API connected")}</span>
       <span className="local-time">{t("Local time")}&nbsp;&nbsp; {now.toLocaleString(locale, { hour12: false, timeZoneName: "short" })}</span>
       <button onClick={refresh}><ReloadOutlined spin={refreshing} /> {t("Refresh")}&nbsp; 10s</button><DownOutlined />
     </footer>
@@ -165,7 +173,7 @@ function OverviewPage() {
         <section className={`overview-resource-grid ${!includeOperations ? "single" : ""}`}>
           <article className="panel overview-clusters">
             <div className="resource-card-title"><div><h2>{t("Cluster inventory")}</h2><span>{language === "zh" ? `${data?.clusters.length ?? 0} 个集群` : `${data?.clusters.length ?? 0} clusters`}</span></div><button onClick={() => navigate("/clusters")}>{t("View clusters")}</button></div>
-            <div className="inventory-list">{data?.resources.map(({ cluster, runtimes, topics, groups }) => <button key={cluster.id} onClick={() => navigate(`/clusters/${cluster.id}`)}><span className="cluster-name-icon"><ClusterOutlined /></span><span><strong>{cluster.name}</strong><small>{language === "zh" ? `${runtimes} 个 Runtime · ${topics} 个主题 · ${groups} 个消费组` : `${runtimes} runtimes · ${topics} topics · ${groups} groups`}</small></span><b>›</b></button>)}</div>
+            <div className="inventory-list">{data?.resources.map(({ cluster, runtimes, topics, groups }) => <button key={cluster.id} onClick={() => navigate(clusterResourcePath(cluster.name, "overview"))}><span className="cluster-name-icon"><ClusterOutlined /></span><span><strong>{cluster.name}</strong><small>{language === "zh" ? `${runtimes} 个 Runtime · ${topics} 个主题 · ${groups} 个消费组` : `${runtimes} runtimes · ${topics} topics · ${groups} groups`}</small></span><b>›</b></button>)}</div>
           </article>
           {includeOperations && <article className="panel overview-operations">
             <div className="resource-card-title"><div><h2>{t("Recent operations")}</h2><span>{t("Stored in operation_log")}</span></div><button onClick={() => navigate("/operations")}>{t("View all")}</button></div>
@@ -199,7 +207,7 @@ const resourceConfig = {
     ],
   },
   connections: {
-    title: "Connections", description: "Client-to-Runtime network connections from the net_connection table.", loader: () => resourceRepository.getConnections(),
+    title: "Client Connections", description: "Client-to-Runtime network sessions from the net_connection table.", loader: () => resourceRepository.getConnections(),
     search: (item) => `${item.clientHost} ${item.runtimeHost} ${item.clusterName} ${item.description}`,
     columns: [
       ["Client", (item, t) => <span className="primary-cell"><LinkOutlined /><span><strong>{item.clientHost}:{item.clientPort}</strong><small>{t("Connection")} #{item.id}</small></span></span>],
@@ -222,23 +230,60 @@ const resourceConfig = {
 
 function ResourcePage({ type }) {
   const { language, t } = useI18n();
+  const { can } = usePermissions();
+  const queryClient = useQueryClient();
   const config = resourceConfig[type];
   const [query, setQuery] = useState("");
   const [clusterId, setClusterId] = useState("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [createTopicOpen, setCreateTopicOpen] = useState(false);
+  const [topicForm, setTopicForm] = useState({ clusterId: null, name: "", description: "", partitionsNums: 8, replicasNums: 1, saveTime: 604800000, cleanupStrategy: 0 });
   const navigate = useNavigate();
   const { data: result, isFetching, error, refetch } = useQuery({ queryKey: ["resources", type], queryFn: config.loader });
   const rows = (result?.data ?? []).filter((item) => (clusterId === "all" || String(item.clusterId) === clusterId) && config.search(item).toLowerCase().includes(query.toLowerCase()));
   const visibleRows = rows.slice((page - 1) * pageSize, page * pageSize);
   const clusterOptions = [{ value: "all", label: t("All clusters") }, ...(result?.clusters ?? []).map((cluster) => ({ value: String(cluster.id), label: cluster.name }))];
+  const canManage = can(PERMISSIONS.MANAGE_CLUSTER);
+  const createTopicMutation = useMutation({
+    mutationFn: (values) => {
+      const cluster = result?.clusters.find((item) => String(item.id) === String(values.clusterId));
+      return resourceRepository.createTopic({ ...values, clusterType: cluster?.clusterType });
+    },
+    onSuccess: async () => {
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ["resources", "topics"] }), queryClient.invalidateQueries({ queryKey: ["dashboard"] })]);
+      setCreateTopicOpen(false);
+      setTopicForm({ clusterId: null, name: "", description: "", partitionsNums: 8, replicasNums: 1, saveTime: 604800000, cleanupStrategy: 0 });
+    },
+  });
+  const deleteGroupMutation = useMutation({
+    mutationFn: (id) => resourceRepository.deleteGroup(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["resources", "groups"] }),
+  });
+  const openTopicCreate = () => {
+    createTopicMutation.reset();
+    setTopicForm((current) => ({ ...current, clusterId: current.clusterId ?? result?.clusters?.[0]?.id ?? null }));
+    setCreateTopicOpen(true);
+  };
+  const headingAction = <div className="heading-actions"><Button icon={<ReloadOutlined spin={isFetching} />} onClick={() => refetch()}>{t("Refresh")}</Button>{type === "topics" && <Tooltip title={canManage ? "" : t("You do not have permission to perform this action.")}><span><Button type="primary" icon={<PlusOutlined />} disabled={!canManage || !result?.clusters?.length} onClick={openTopicCreate}>{t("Create topic")}</Button></span></Tooltip>}</div>;
   return <div className="page resource-page">
-    <ResourceHeading title={t(config.title)} description={t(config.description)} loading={isFetching} action={<Button icon={<ReloadOutlined spin={isFetching} />} onClick={() => refetch()}>{t("Refresh")}</Button>} />
+    <ResourceHeading title={t(config.title)} description={t(config.description)} loading={isFetching} action={headingAction} />
     {error ? <ApiError error={error} /> : <section className="panel resource-list-panel">
       <div className="panel-toolbar"><div><h2>{t(`All ${config.title.toLowerCase()}`)}</h2><span>{language === "zh" ? `MySQL 中的 ${rows.length} 条记录` : `${rows.length} records from MySQL`}</span></div><div className="filters"><Input allowClear prefix={<SearchOutlined />} placeholder={t(`Search ${config.title.toLowerCase()}`)} value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} /><Select value={clusterId} onChange={(value) => { setClusterId(value); setPage(1); }} options={clusterOptions} /></div></div>
-      <div className="resource-table-wrap"><table className="resource-table"><thead><tr>{config.columns.map(([label]) => <th key={label}>{t(label)}</th>)}</tr></thead><tbody>{visibleRows.map((item) => <tr key={item.id} onClick={() => item.clusterId && navigate(`/clusters/${item.clusterId}`)}>{config.columns.map(([label, render]) => <td key={label}>{render(item, t)}</td>)}</tr>)}</tbody></table>{!rows.length && !isFetching && <div className="empty-state"><SearchOutlined /><b>{t("No records found")}</b><span>{t("Try changing the search or cluster filter.")}</span></div>}</div>
+      <div className="resource-table-wrap"><table className="resource-table"><thead><tr>{config.columns.map(([label]) => <th key={label}>{t(label)}</th>)}{type === "groups" && <th>{t("Actions")}</th>}</tr></thead><tbody>{visibleRows.map((item) => <tr key={item.id} onClick={() => item.clusterId && navigate(clusterResourcePath(item.clusterName || item.clusterId, "overview"))}>{config.columns.map(([label, render]) => <td key={label}>{render(item, t)}</td>)}{type === "groups" && <td><Tooltip title={canManage ? "" : t("You do not have permission to perform this action.")}><span><Button danger size="small" icon={<DeleteOutlined />} disabled={!canManage} loading={deleteGroupMutation.isPending && deleteGroupMutation.variables === item.id} onClick={(event) => { event.stopPropagation(); Modal.confirm({ title: t("Delete consumer group?"), content: item.name, okText: t("Delete"), cancelText: t("Cancel"), okButtonProps: { danger: true }, onOk: () => deleteGroupMutation.mutateAsync(item.id) }); }}>{t("Delete")}</Button></span></Tooltip></td>}</tr>)}</tbody></table>{!rows.length && !isFetching && <div className="empty-state"><SearchOutlined /><b>{t("No records found")}</b><span>{t("Try changing the search or cluster filter.")}</span></div>}</div>
       {!!rows.length && <div className="table-pagination"><Pagination current={page} pageSize={pageSize} total={rows.length} showSizeChanger pageSizeOptions={["20", "50", "100"]} onChange={(nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize); }} /></div>}
     </section>}
+    <Modal title={t("Create topic")} open={createTopicOpen} onCancel={() => setCreateTopicOpen(false)} onOk={() => createTopicMutation.mutate(topicForm)} okText={t("Create topic")} confirmLoading={createTopicMutation.isPending} okButtonProps={{ disabled: !topicForm.clusterId || !topicForm.name.trim() || !topicForm.description.trim() }} destroyOnHidden>
+      <div className="create-cluster-form">
+        <Alert type="info" showIcon message={t("The topic will be written through the selected cluster's backend operation scope.")} />
+        <label>{t("Cluster")}<Select value={topicForm.clusterId == null ? null : String(topicForm.clusterId)} options={(result?.clusters ?? []).map((cluster) => ({ value: String(cluster.id), label: `${cluster.name} · ${cluster.clusterType}` }))} onChange={(value) => setTopicForm((current) => ({ ...current, clusterId: value }))} /></label>
+        <label>{t("Topic name")}<Input value={topicForm.name} onChange={(event) => setTopicForm((current) => ({ ...current, name: event.target.value }))} /></label>
+        <div className="create-form-grid"><label>{t("Partitions / queues")}<InputNumber min={1} max={10000} value={topicForm.partitionsNums} onChange={(value) => setTopicForm((current) => ({ ...current, partitionsNums: value }))} /></label><label>{t("Replicas")}<InputNumber min={1} max={15} value={topicForm.replicasNums} onChange={(value) => setTopicForm((current) => ({ ...current, replicasNums: value }))} /></label></div>
+        <div className="create-form-grid"><label>{t("Retention")}<Select value={topicForm.saveTime} options={[{ value: 86400000, label: t("1 day") }, { value: 604800000, label: t("7 days") }, { value: 2592000000, label: t("30 days") }, { value: -1, label: t("No limit") }]} onChange={(value) => setTopicForm((current) => ({ ...current, saveTime: value }))} /></label><label>{t("Cleanup policy")}<Select value={topicForm.cleanupStrategy} options={[{ value: 0, label: t("Delete expired messages") }, { value: 1, label: t("Compact by key") }]} onChange={(value) => setTopicForm((current) => ({ ...current, cleanupStrategy: value }))} /></label></div>
+        <label>{t("Description")}<Input.TextArea rows={3} value={topicForm.description} onChange={(event) => setTopicForm((current) => ({ ...current, description: event.target.value }))} /></label>
+        {createTopicMutation.isError && <Alert type="error" showIcon message={createTopicMutation.error?.response?.data?.message || createTopicMutation.error?.message || t("Topic creation failed.")} />}
+      </div>
+    </Modal>
   </div>;
 }
 
@@ -338,9 +383,10 @@ function ClusterOverview() {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
+  const [clusterType, setClusterType] = useState("all");
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({ name: "", version: "1.11.0", clusterType: "EVENTMESH_JVM_CLUSTER", description: "" });
+  const [createForm, setCreateForm] = useState({ name: "", version: "1.11.0", clusterType: "EVENTMESH_JVM_CLUSTER", description: "", managementMode: "managed", firstToWhom: "DASHBOARD", trusteeshipArrangeType: "SELF" });
   const { data: result = clusterListPlaceholder, isPlaceholderData, isFetching, error, refetch } = useQuery({
     queryKey: ["dashboard", "clusters"],
     queryFn: () => dashboardRepository.getClusters(),
@@ -348,21 +394,22 @@ function ClusterOverview() {
   });
   const clusterData = result.data;
   const sourceMeta = isPlaceholderData ? { ...result.meta, source: "loading" } : result.meta;
-  const filtered = clusterData.filter((cluster) => cluster.name.toLowerCase().includes(query.toLowerCase()) && (status === "all" || cluster.status.toLowerCase() === status));
+  const filtered = clusterData.filter((cluster) => `${cluster.name} ${cluster.clusterType}`.toLowerCase().includes(query.toLowerCase()) && (status === "all" || cluster.status.toLowerCase() === status) && (clusterType === "all" || cluster.clusterType === clusterType));
   const visibleClusters = filtered.slice((page - 1) * 20, page * 20);
   const healthy = clusterData.filter((cluster) => cluster.status === "Healthy").length;
   const runtimeTotal = clusterData.reduce((total, cluster) => total + Number(cluster.runtimes || 0), 0);
   const regionCount = new Set(clusterData.map((cluster) => cluster.region).filter((region) => region && region !== "—")).size;
+  const clusterTypeOptions = [{ value: "all", label: t("All types") }, ...[...new Set(clusterData.map((cluster) => cluster.clusterType).filter(Boolean))].map((value) => ({ value, label: t(clusterTypePresentation(value).label) }))];
   const createMutation = useMutation({
     mutationFn: (values) => dashboardRepository.createCluster(values),
-    onSuccess: async ({ id }) => {
+    onSuccess: async ({ id, name }) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["dashboard", "clusters"] }),
         queryClient.invalidateQueries({ queryKey: ["resources"] }),
       ]);
       setCreateOpen(false);
-      setCreateForm({ name: "", version: "1.11.0", clusterType: "EVENTMESH_JVM_CLUSTER", description: "" });
-      navigate(`/clusters/${id}`);
+      setCreateForm({ name: "", version: "1.11.0", clusterType: "EVENTMESH_JVM_CLUSTER", description: "", managementMode: "managed", firstToWhom: "DASHBOARD", trusteeshipArrangeType: "SELF" });
+      navigate(clusterResourcePath(name || id, "overview"));
     },
   });
   const openCreate = () => {
@@ -371,6 +418,15 @@ function ClusterOverview() {
     setCreateOpen(true);
   };
   const updateCreateField = (field, value) => setCreateForm((current) => ({ ...current, [field]: value }));
+  const updateManagementMode = (managementMode) => {
+    const policy = {
+      registered: { firstToWhom: "NOT", trusteeshipArrangeType: "NO_TRUSTEESHIP" },
+      observed: { firstToWhom: "RUNTIME", trusteeshipArrangeType: "TRUSTEESHIP_FIND_REVERSE" },
+      assisted: { firstToWhom: "RUNTIME", trusteeshipArrangeType: "TRUSTEESHIP" },
+      managed: { firstToWhom: "DASHBOARD", trusteeshipArrangeType: "SELF" },
+    }[managementMode];
+    setCreateForm((current) => ({ ...current, managementMode, ...policy }));
+  };
   const submitCreate = () => {
     if (!can(PERMISSIONS.CREATE_CLUSTER) || !createForm.name.trim() || !createForm.version.trim() || !createForm.description.trim()) return;
     createMutation.mutate(createForm);
@@ -378,8 +434,8 @@ function ClusterOverview() {
   const createDisabled = !createForm.name.trim() || !createForm.version.trim() || !createForm.description.trim();
   const canCreateCluster = can(PERMISSIONS.CREATE_CLUSTER);
   return (
-    <div className="page overview-page">
-      <div className="page-heading overview-heading">
+    <div className="page overview-page reference-cluster-page">
+      <div className="page-heading overview-heading reference-cluster-heading">
         <div><div className="title-with-source"><h1>{t("Clusters")}</h1><DataSourceTag meta={sourceMeta} fetching={isFetching} /></div><p>{t("Monitor and manage your EventMesh clusters.")}</p></div>
         <Tooltip title={canCreateCluster ? "" : t("You do not have permission to perform this action.")}><span className="permission-button-wrap"><Button type="primary" icon={<CloudServerOutlined />} disabled={!canCreateCluster} onClick={openCreate}>{t("Create cluster")}</Button></span></Tooltip>
       </div>
@@ -394,21 +450,36 @@ function ClusterOverview() {
           <div><h2>{t("All clusters")}</h2><span>{language === "zh" ? `${filtered.length} 个集群` : `${filtered.length} clusters`}</span></div>
           <div className="filters">
             <Input allowClear prefix={<SearchOutlined />} placeholder={t("Search clusters")} value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} />
+            <Select value={clusterType} onChange={(value) => { setClusterType(value); setPage(1); }} options={clusterTypeOptions} />
             <Select value={status} onChange={(value) => { setStatus(value); setPage(1); }} options={[{ value: "all", label: t("All status") }, { value: "healthy", label: t("Healthy") }, { value: "warning", label: t("Warning") }]} />
             <Button icon={<ReloadOutlined spin={isFetching} />} onClick={() => refetch()}>{t("Refresh")}</Button>
           </div>
         </div>
-        <div className="cluster-table-wrap">
-          <table className="cluster-table">
-            <thead><tr><th>{t("Cluster")}</th><th>{t("Status")}</th><th>{t("Region")}</th><th>{t("Runtimes")}</th><th>{t("Topics")}</th><th>{t("Description")}</th><th>{t("Version")}</th></tr></thead>
-            <tbody>{visibleClusters.map((cluster) => (
-              <tr key={cluster.id} onClick={() => navigate(`/clusters/${cluster.id}`)}>
-                <td><span className="cluster-name-icon"><ClusterOutlined /></span><span><strong>{cluster.name}</strong><small>{cluster.clusterId}</small></span></td>
-                <td><HealthTag status={cluster.status} /></td><td>{cluster.region}</td><td>{cluster.runtimes ?? 0}</td><td>{Number(cluster.topics ?? 0).toLocaleString()}</td>
-                <td>{cluster.description || "—"}</td><td>{cluster.version}</td>
-              </tr>
-            ))}</tbody>
-          </table>
+        <div className="cluster-card-grid">
+          {visibleClusters.map((cluster) => {
+            const presentation = clusterTypePresentation(cluster.clusterType);
+            const relationshipCount = (cluster.dependencies?.length ?? 0) + (cluster.dependents?.length ?? 0);
+            const openCluster = () => navigate(clusterResourcePath(cluster.name, "overview"));
+            return <article key={cluster.id} className={`cluster-console-card ${presentation.tone}`} role="button" tabIndex={0} onClick={openCluster} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openCluster(); } }}>
+              <header>
+                <span className="cluster-console-icon">{presentation.icon}</span>
+                <span className="cluster-console-title"><strong>{cluster.name}</strong><small>{t(presentation.label)} · {cluster.clusterId}</small></span>
+                <HealthTag status={cluster.status} />
+              </header>
+              <div className="cluster-console-body">
+                <span className="cluster-console-description">{cluster.description || t("No MySQL metric available")}</span>
+                <span><small>{t("Runtimes")}</small><strong>{cluster.runtimes ?? 0}</strong></span>
+                <span><small>{t("Topics")}</small><strong>{Number(cluster.topics ?? 0).toLocaleString()}</strong></span>
+                <span><small>{t("Architecture")}</small><strong>{t(clusterArchitectureLabel(cluster.architecture))}</strong></span>
+                <span><small>{t("Management mode")}</small><strong>{t(clusterManagementLabel(cluster.management, cluster.sourceAuthority))}</strong></span>
+              </div>
+              <footer>
+                <span><small>{t("Region")}</small><b>{cluster.region || "—"}</b></span>
+                <span><small>{t("Version")}</small><b>{cluster.version || "—"}</b></span>
+                <span className="cluster-console-topology">{relationshipCount ? (language === "zh" ? `${relationshipCount} 条关系` : `${relationshipCount} relations`) : t("View topology")} <b>→</b></span>
+              </footer>
+            </article>;
+          })}
           {!filtered.length && <div className="empty-state"><SearchOutlined /><b>{t("No clusters found")}</b><span>{t("Try changing your filters.")}</span></div>}
         </div>
         {!!filtered.length && <div className="table-pagination"><Pagination current={page} pageSize={20} total={filtered.length} showSizeChanger={false} onChange={setPage} /></div>}
@@ -417,7 +488,8 @@ function ClusterOverview() {
         <div className="create-cluster-form">
           <div className="create-basic-banner"><CloudServerOutlined /><span><strong>{t("Basic information")}</strong><small>{t("Creates a cluster record in the active organization.")}</small></span></div>
           <label>{t("Cluster name")}<Input value={createForm.name} onChange={(event) => updateCreateField("name", event.target.value)} placeholder={language === "zh" ? "例如：dev-eventmesh-north" : "for example, dev-eventmesh-north"} status={createMutation.isError ? "error" : ""} /></label>
-          <div className="create-form-grid"><label>{t("Cluster type")}<Select value={createForm.clusterType} onChange={(value) => updateCreateField("clusterType", value)} options={[{ value: "EVENTMESH_JVM_CLUSTER", label: t("EventMesh JVM cluster") }]} /></label><label>{t("Version")}<Input value={createForm.version} onChange={(event) => updateCreateField("version", event.target.value)} /></label></div>
+          <div className="create-form-grid"><label>{t("Cluster type")}<Select value={createForm.clusterType} onChange={(value) => updateCreateField("clusterType", value)} options={[{ value: "EVENTMESH_JVM_CLUSTER", label: t("EventMesh JVM cluster") }, { value: "EVENTMESH_CLUSTER", label: t("EventMesh logical cluster") }, { value: "STORAGE_ROCKETMQ_CLUSTER", label: t("RocketMQ cluster") }, { value: "STORAGE_KAFKA_CLUSTER", label: t("Kafka cluster") }]} /></label><label>{t("Version")}<Input value={createForm.version} onChange={(event) => updateCreateField("version", event.target.value)} /></label></div>
+          <label>{t("Management mode")}<Select value={createForm.managementMode} onChange={updateManagementMode} options={[{ value: "registered", label: t("Registered only") }, { value: "observed", label: t("Observed access") }, { value: "assisted", label: t("Assisted management") }, { value: "managed", label: t("Fully managed") }]} /></label>
           <label>{t("Description")}<Input.TextArea rows={3} value={createForm.description} onChange={(event) => updateCreateField("description", event.target.value)} placeholder={t("Describe the workload and environment")} /></label>
           {createMutation.isError && <div className="create-error"><ExclamationCircleFilled />{createMutation.error?.message || t("The cluster could not be created.")}</div>}
           <p className="create-note">{t("The basic flow writes the cluster through the documented EventMesh Dashboard API.")}</p>
@@ -437,6 +509,44 @@ function HealthTag({ status }) {
   return <Tag className={`health-tag ${value.toLowerCase()}`}><i />{t(value)}</Tag>;
 }
 
+function clusterTypePresentation(type) {
+  const normalized = String(type ?? "UNKNOWN").toUpperCase();
+  if (normalized.includes("META")) return { label: "Meta cluster", tone: "meta", icon: <CloudServerOutlined /> };
+  if (normalized.includes("STORAGE")) return { label: normalized.includes("ROCKETMQ") ? "RocketMQ storage cluster" : normalized.includes("KAFKA") ? "Kafka storage cluster" : "Storage cluster", tone: "storage", icon: <DatabaseOutlined /> };
+  if (normalized.includes("EVENTMESH")) return { label: "EventMesh cluster", tone: "eventmesh", icon: <ClusterOutlined /> };
+  return { label: "Other cluster", tone: "other", icon: <ClusterOutlined /> };
+}
+
+function clusterArchitectureLabel(value) {
+  return ({ NOT: "Not configured", MAIN: "Primary", SLAVE: "Replica", MAIN_SLAVE: "Primary / replica" })[value] ?? value ?? "—";
+}
+
+function clusterManagementLabel(value, sourceAuthority) {
+  if (value === "SELF" || sourceAuthority === "DASHBOARD") return "Fully managed";
+  if (value === "TRUSTEESHIP") return "Assisted management";
+  if (["TRUSTEESHIP_FIND", "TRUSTEESHIP_FIND_REVERSE"].includes(value) || sourceAuthority === "RUNTIME") return "Observed access";
+  if (["NOT", "NO_TRUSTEESHIP"].includes(value) || sourceAuthority === "NOT") return "Registered only";
+  return value ?? "—";
+}
+
+function ClusterTypeBadge({ type }) {
+  const { t } = useI18n();
+  const presentation = clusterTypePresentation(type);
+  return <Tooltip title={type || t("Unknown")}><Tag className={`cluster-type-badge ${presentation.tone}`} icon={presentation.icon}>{t(presentation.label)}</Tag></Tooltip>;
+}
+
+function ClusterTopologySummary({ cluster, onOpen }) {
+  const { language, t } = useI18n();
+  const dependencies = cluster.dependencies ?? [];
+  const dependents = cluster.dependents ?? [];
+  if (!cluster.topologyAvailable) return <span className="topology-summary-empty">{t("Unavailable")}</span>;
+  if (!dependencies.length && !dependents.length) return <span className="topology-summary-empty">{t("Not linked")}</span>;
+  return <button type="button" className="topology-summary" onClick={(event) => { event.stopPropagation(); onOpen(); }} aria-label={`${t("View topology")}: ${cluster.name}`}>
+    {!!dependencies.length && <span className="topology-relation-row"><b><LinkOutlined />{language === "zh" ? `依赖 ${dependencies.length} 个集群` : `${t("Depends on")} ${dependencies.length}`}</b><span>{dependencies.slice(0, 2).map((dependency) => { const type = clusterTypePresentation(dependency.clusterType); return <em key={dependency.id} className={`topology-relation-chip ${type.tone}`}>{t(type.label)} · {dependency.name}</em>; })}{dependencies.length > 2 && <em className="topology-relation-more">+{dependencies.length - 2}</em>}</span></span>}
+    {!!dependents.length && <span className="topology-relation-row inbound"><b><ClusterOutlined />{language === "zh" ? `被 ${dependents.length} 个集群依赖` : `${t("Depended on by")} ${dependents.length}`}</b><small>{dependents.map((dependent) => dependent.name).join(" · ")}</small></span>}
+  </button>;
+}
+
 function DataSourceTag({ meta, fetching = false }) {
   const { t } = useI18n();
   const source = fetching ? "loading" : meta?.source ?? "loading";
@@ -452,33 +562,67 @@ function DataSourceTag({ meta, fetching = false }) {
 function ClusterDetail() {
   const { language, t } = useI18n();
   const { can } = usePermissions();
-  const { clusterId } = useParams();
+  const { clusterId, view } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const activeView = normalizeClusterView(view, new URLSearchParams(location.search).get("tab"));
   const placeholder = useMemo(() => clusterDetailPlaceholder(clusterId), [clusterId]);
   const includeOperations = can(PERMISSIONS.VIEW_OPERATIONS);
-  const { data: result = placeholder, isPlaceholderData, isFetching, error } = useQuery({
+  const { data: result = placeholder, isPlaceholderData, isFetching, error, refetch } = useQuery({
     queryKey: ["dashboard", "cluster", clusterId, includeOperations],
     queryFn: () => dashboardRepository.getClusterDashboard(clusterId, { includeOperations }),
     placeholderData: placeholder,
   });
-  const { cluster, runtimes: runtimeData, topicCount, groupCount, connectionCount, recentChanges: changeData } = result.data;
+  const { cluster, runtimes: runtimeData, topics, groups, connections, topicCount, groupCount, connectionCount, recentChanges: changeData, topology, topologyError } = result.data;
   const sourceMeta = isPlaceholderData ? { ...result.meta, source: "loading" } : result.meta;
+  const healthScoreAvailable = Number.isFinite(cluster.score);
+  const healthScoreHealthy = healthScoreAvailable && cluster.status === "Healthy";
   const [manageOpen, setManageOpen] = useState(false);
   const [drawer, setDrawer] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  useEffect(() => {
+    if (isPlaceholderData || error || !cluster?.name) return;
+    const canonicalPath = clusterResourcePath(cluster.name, activeView, new URLSearchParams(location.search));
+    if (canonicalPath !== `${location.pathname}${location.search}`) navigate(canonicalPath, { replace: true });
+  }, [activeView, cluster?.name, error, isPlaceholderData, location.pathname, location.search, navigate]);
+  const changeView = (nextView) => navigate(clusterResourcePath(cluster.name || clusterId, nextView, new URLSearchParams(location.search)));
+  const copyPageLink = async () => {
+    await navigator.clipboard.writeText(window.location.href);
+    setLinkCopied(true);
+    window.setTimeout(() => setLinkCopied(false), 1_500);
+  };
   if (error) return <div className="page detail-page"><ApiError error={error} /><button className="back-to-list visible" onClick={() => navigate("/clusters")}><span>←</span> {t("Back to clusters")}</button></div>;
+  if (activeView === "topology") return <div className="topology-experience-page"><TopologyExperience
+    cluster={cluster}
+    topology={topology}
+    runtimes={runtimeData}
+    topics={topics}
+    groups={groups}
+    connections={connections}
+    error={topologyError}
+    loading={isPlaceholderData}
+    fetching={isFetching}
+    fetchedAt={sourceMeta.fetchedAt}
+    onRefresh={() => refetch()}
+    onExit={() => navigate(clusterResourcePath(cluster.name || clusterId, "overview"))}
+  /></div>;
   return (
-    <div className="page detail-page">
+    <div className={`page detail-page reference-cluster-detail ${activeView === "topology" ? "topology-focus" : ""}`}>
       <section className="cluster-hero">
         <div className="cluster-identity"><h1>{cluster.name}</h1>
-          <div className="metadata primary-meta"><HealthTag status={cluster.status} /><DataSourceTag meta={sourceMeta} fetching={isFetching} /><span>{t("Version")}&nbsp; {cluster.version}</span><span>{t("Cluster ID")}&nbsp; {cluster.clusterId} <Tooltip title={t(copied ? "Copied" : "Copy cluster ID")}><CopyOutlined className="copy-icon" onClick={async () => { await navigator.clipboard.writeText(cluster.clusterId); setCopied(true); window.setTimeout(() => setCopied(false), 1_500); }} /></Tooltip></span><span>{t("Uptime")}&nbsp; {formatUptime(cluster.uptime, language)}</span></div>
+          <div className="metadata primary-meta"><HealthTag status={cluster.status} /><ClusterTypeBadge type={cluster.clusterType} /><DataSourceTag meta={sourceMeta} fetching={isFetching} /><span>{t("Version")}&nbsp; {cluster.version}</span><span>{t("Cluster ID")}&nbsp; {cluster.clusterId} <Tooltip title={t(copied ? "Copied" : "Copy cluster ID")}><CopyOutlined className="copy-icon" onClick={async () => { await navigator.clipboard.writeText(cluster.clusterId); setCopied(true); window.setTimeout(() => setCopied(false), 1_500); }} /></Tooltip></span><span>{t("Uptime")}&nbsp; {formatUptime(cluster.uptime, language)}</span></div>
           <div className="metadata"><span>{t("Created")}&nbsp; {cluster.created}</span><span>{t("Region")}&nbsp; {cluster.region}</span></div>
         </div>
-        <div className="cluster-actions"><Button type="primary" onClick={() => setManageOpen(true)}>{t("Resource shortcuts")}</Button></div>
-        <div className="health-score"><Progress type="circle" percent={Number.isFinite(cluster.score) ? cluster.score : 0} size={82} strokeWidth={6} strokeColor="#0ca255" format={(percent) => Number.isFinite(cluster.score) ? percent : "—"} /><div><strong>{t("Cluster health score")} <InfoCircleFilled /></strong><span>{t(Number.isFinite(cluster.score) ? "All systems operational" : "Waiting for health data")}</span><small>{t("Last refreshed")}&nbsp; {formatDateTime(sourceMeta.fetchedAt)}</small></div></div>
+        <div className="cluster-actions"><Button className="share-link-button" icon={<LinkOutlined />} onClick={copyPageLink}>{t(linkCopied ? "Link copied" : "Copy page link")}</Button><Button type="primary" onClick={() => setManageOpen(true)}>{t("Resource shortcuts")}</Button></div>
+        <div className={`health-score ${healthScoreAvailable && !healthScoreHealthy ? "warning" : ""}`}><Progress type="circle" percent={healthScoreAvailable ? cluster.score : 0} size={82} strokeWidth={6} strokeColor={healthScoreHealthy ? "#0ca255" : "#eda800"} format={(percent) => healthScoreAvailable ? percent : "—"} /><div><strong>{t("Cluster health score")} <InfoCircleFilled /></strong><span>{t(!healthScoreAvailable ? "Waiting for health data" : healthScoreHealthy ? "All systems operational" : "Attention needed")}</span><small>{t("Last refreshed")}&nbsp; {formatDateTime(sourceMeta.fetchedAt)}</small></div></div>
       </section>
-      <section className="panel cluster-resource-snapshot"><div><span>{t("Runtimes")}</span><strong>{runtimeData.length}</strong><small>{t("Registered instances")}</small></div><div><span>{t("Topics")}</span><strong>{Number(topicCount ?? 0).toLocaleString()}</strong><small>{t("Current total")}</small></div><div><span>{t("Consumer Groups")}</span><strong>{Number(groupCount ?? 0).toLocaleString()}</strong><small>{t("Current total")}</small></div><div><span>{t("Connections")}</span><strong>{connectionCount ?? "—"}</strong><small>{t("Current total")}</small></div></section>
-      <section className={`detail-grid ${!includeOperations ? "without-changes" : ""}`}><RuntimePanel runtimes={runtimeData} onView={() => setDrawer("runtimes")} /><TopicGroupPanel topicCount={topicCount} groupCount={groupCount} />{includeOperations && <ChangesPanel changes={changeData} onView={() => setDrawer("changes")} />}</section>
+      <Tabs className="cluster-detail-tabs" activeKey={activeView} onChange={changeView} items={[
+        { key: "overview", label: t("Resource overview"), children: <><section className="panel cluster-resource-snapshot"><div><span>{t("Runtimes")}</span><strong>{runtimeData.length}</strong><small>{t("Registered instances")}</small></div><div><span>{t("Topics")}</span><strong>{Number(topicCount ?? 0).toLocaleString()}</strong><small>{t("Current total")}</small></div><div><span>{t("Consumer Groups")}</span><strong>{Number(groupCount ?? 0).toLocaleString()}</strong><small>{t("Current total")}</small></div><div><span>{t("Connections")}</span><strong>{connectionCount ?? "—"}</strong><small>{t("Current total")}</small></div></section><section className={`detail-grid ${!includeOperations ? "without-changes" : ""}`}><RuntimePanel runtimes={runtimeData} onView={() => setDrawer("runtimes")} /><TopicGroupPanel topicCount={topicCount} groupCount={groupCount} />{includeOperations && <ChangesPanel changes={changeData} onView={() => setDrawer("changes")} />}</section></> },
+        { key: "topology", label: t("Cluster topology"), children: <TopologyPanel topology={topology} error={topologyError} loading={isPlaceholderData || isFetching} /> },
+        { key: "health", label: t("Health"), children: <ClusterHealthPanel cluster={cluster} runtimes={runtimeData} /> },
+        { key: "configuration", label: t("Configuration"), children: <ClusterConfigPanel cluster={cluster} /> },
+      ]} />
       <Modal title={t("Resource shortcuts")} open={manageOpen} onCancel={() => setManageOpen(false)} footer={<Button type="primary" onClick={() => setManageOpen(false)}>{t("Done")}</Button>}>
         <div className="manage-form"><p>{t("Open a live resource view for")} <strong>{cluster.name}</strong>{language === "zh" ? "。" : "."}</p><div className="manage-links"><Button icon={<AppstoreOutlined />} onClick={() => navigate("/topics")}>{t("Topics")}</Button><Button icon={<LinkOutlined />} onClick={() => navigate("/connections")}>{t("View connections")}</Button>{includeOperations && <Button icon={<ToolOutlined />} onClick={() => navigate("/operations")}>{t("Operation history")}</Button>}</div></div>
       </Modal>
@@ -486,6 +630,158 @@ function ClusterDetail() {
       <button className="back-to-list" onClick={() => navigate("/clusters")}><span>←</span> {t("Back to clusters")}</button>
     </div>
   );
+}
+
+function flattenTopology(node, parent = null, items = []) {
+  if (!node) return items;
+  items.push({ ...node, parent });
+  node.children?.forEach((child) => flattenTopology(child, node, items));
+  return items;
+}
+
+function topologyTypeLabel(node, t) {
+  if (node.kind === "group") return t("Runtime group");
+  if (node.kind === "runtime") return t("Runtime instance");
+  const labels = {
+    EVENTMESH_JVM_CLUSTER: "EventMesh JVM cluster",
+    EVENTMESH_JVM_META: "Metadata cluster",
+    EVENTMESH_JVM_RUNTIME: "EventMesh Runtime cluster",
+    STORAGE_ROCKETMQ_CLUSTER: "RocketMQ storage cluster",
+    STORAGE_KAFKA_CLUSTER: "Kafka storage cluster",
+  };
+  return t(labels[node.clusterType] ?? "Related cluster");
+}
+
+function topologyRelationLabel(relation, t) {
+  return t({ ROOT: "Topology root", CLUSTER_RELATIONSHIP: "Cluster relationship", DIRECT_RUNTIME_GROUP: "Direct runtimes", DIRECT_RUNTIME: "Direct runtime", RUNTIME_MEMBER: "Runtime member" }[relation] ?? "Cluster relationship");
+}
+
+function topologyNodeName(node, t) {
+  return node.kind === "group" ? t(node.name) : node.name;
+}
+
+function topologyNodeTone(node) {
+  if (node.kind === "runtime" || node.kind === "group") return "runtime";
+  if (node.clusterType?.includes("META")) return "metadata";
+  if (node.clusterType?.includes("STORAGE")) return "storage";
+  return "eventmesh";
+}
+
+function topologyNodeMatches(node, query, t) {
+  const searchText = [
+    topologyNodeName(node, t),
+    topologyTypeLabel(node, t),
+    node.clusterType,
+    node.host,
+    node.port,
+    topologyRelationLabel(node.relation, t),
+  ].filter(Boolean).join(" ").toLocaleLowerCase();
+  return searchText.includes(query.trim().toLocaleLowerCase());
+}
+
+function topologyNodePassesFilters(node, filters, t) {
+  const matchesQuery = !filters.query.trim() || topologyNodeMatches(node, filters.query, t);
+  const matchesComponent = filters.component === "all" || topologyNodeTone(node) === filters.component;
+  const matchesStatus = filters.status === "all" || (filters.status === "healthy" ? node.status === "Healthy" : node.status !== "Healthy");
+  return matchesQuery && matchesComponent && matchesStatus;
+}
+
+function filterTopology(node, filters, t) {
+  if (!node) return null;
+  const children = (node.children ?? []).map((child) => filterTopology(child, filters, t)).filter(Boolean);
+  return topologyNodePassesFilters(node, filters, t) || children.length ? { ...node, children } : null;
+}
+
+function collapsibleTopologyKeys(topology) {
+  return flattenTopology(topology).filter((node) => node.children?.length).map((node) => node.key);
+}
+
+function TopologyBranch({ node, selectedKey, onSelect, collapsedKeys, onToggle, forceExpanded = false, depth = 1 }) {
+  const { language, t } = useI18n();
+  const hasChildren = Boolean(node.children?.length);
+  const collapsed = hasChildren && collapsedKeys.has(node.key) && !forceExpanded;
+  const NodeIcon = node.kind === "runtime" || node.kind === "group" ? CloudServerOutlined : node.clusterType?.includes("STORAGE") ? DatabaseOutlined : ClusterOutlined;
+  return <li>
+    <div className={`topology-node-wrap ${hasChildren ? "has-children" : "leaf"}`}>
+      <button type="button" role="treeitem" aria-level={depth} aria-selected={selectedKey === node.key} aria-expanded={hasChildren ? !collapsed : undefined} className={`topology-node ${topologyNodeTone(node)} ${selectedKey === node.key ? "selected" : ""}`} onClick={() => onSelect(node)}>
+        <span className="topology-node-head">
+          <span className={`topology-node-icon ${node.kind}`}><NodeIcon /></span>
+          <span className="topology-node-copy"><strong>{topologyNodeName(node, t)}</strong><small>{topologyTypeLabel(node, t)}</small></span>
+          <span className={`topology-node-state ${node.status === "Healthy" ? "healthy" : "warning"}`}><i />{t(node.status)}</span>
+        </span>
+        <span className="topology-node-body">
+          <span><small>{t("Node ID")}</small><strong>{node.id == null ? "—" : `#${node.id}`}</strong></span>
+          <span><small>{t("Endpoint")}</small><strong>{node.host ? `${node.host}:${node.port ?? "—"}` : "—"}</strong></span>
+        </span>
+        <span className="topology-node-foot"><span>{topologyRelationLabel(node.relation, t)}</span><b>{hasChildren ? (language === "zh" ? `${node.children.length} 个下级` : `${node.children.length} children`) : (language === "zh" ? "查看详情 →" : "View details →")}</b></span>
+      </button>
+      {hasChildren && <button type="button" className={`topology-collapse ${collapsed ? "collapsed" : ""}`} aria-label={t(collapsed ? "Expand node" : "Collapse node")} title={t(collapsed ? "Expand node" : "Collapse node")} onClick={() => onToggle(node.key)}><DownOutlined /></button>}
+    </div>
+    {hasChildren && !collapsed && <ul role="group">{node.children.map((child) => <TopologyBranch key={child.key} node={child} selectedKey={selectedKey} onSelect={onSelect} collapsedKeys={collapsedKeys} onToggle={onToggle} forceExpanded={forceExpanded} depth={depth + 1} />)}</ul>}
+  </li>;
+}
+
+function TopologyPanel({ topology, error, loading }) {
+  const { language, t } = useI18n();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = searchParams.get("q") ?? "";
+  const component = searchParams.get("component") ?? "all";
+  const topologyStatus = searchParams.get("status") ?? "all";
+  const requestedNodeKey = searchParams.get("node");
+  const [collapsedKeys, setCollapsedKeys] = useState(() => new Set());
+  useEffect(() => {
+    setCollapsedKeys(new Set(flattenTopology(topology).filter((node) => node.kind === "group").map((node) => node.key)));
+  }, [topology]);
+  const nodes = useMemo(() => flattenTopology(topology), [topology]);
+  const selected = useMemo(() => nodes.find((node) => node.key === requestedNodeKey) ?? topology, [nodes, requestedNodeKey, topology]);
+  const resourceNodes = nodes.filter((node) => node.kind !== "group");
+  const topologyFilters = useMemo(() => ({ query, component, status: topologyStatus }), [component, query, topologyStatus]);
+  const hasActiveFilter = Boolean(query.trim()) || component !== "all" || topologyStatus !== "all";
+  const visibleTopology = useMemo(() => hasActiveFilter ? filterTopology(topology, topologyFilters, t) : topology, [hasActiveFilter, language, t, topology, topologyFilters]);
+  const matchingCount = hasActiveFilter ? resourceNodes.filter((node) => topologyNodePassesFilters(node, topologyFilters, t)).length : resourceNodes.length;
+  const clusterCount = nodes.filter((node) => node.kind === "cluster").length;
+  const runtimeCount = nodes.filter((node) => node.kind === "runtime").length;
+  const relationshipCount = nodes.filter((node) => node.relation === "CLUSTER_RELATIONSHIP").length;
+  const toggleNode = (key) => setCollapsedKeys((current) => {
+    const next = new Set(current);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
+  const updateUrlState = (key, value) => {
+    const next = new URLSearchParams(searchParams);
+    value ? next.set(key, value) : next.delete(key);
+    setSearchParams(next, { replace: true });
+  };
+  const selectNode = (node) => updateUrlState("node", node.key);
+  if (!topology && loading) return <section className="panel topology-loading"><Spin /><span>{t("Loading cluster topology")}</span></section>;
+  if (!topology) return <section className="panel topology-loading"><ClusterOutlined /><span>{t("No topology data")}</span></section>;
+  return <section className="panel topology-panel">
+    <div className="topology-heading"><div><span className="topology-heading-icon"><ClusterOutlined /></span><span><h2>{t("Cluster topology")}</h2><p>{t("Live hierarchy from cluster_relationship and Runtime records.")}</p></span></div><div className="topology-stats"><span><strong>{resourceNodes.length}</strong>{t("Nodes")}</span><span><strong>{clusterCount}</strong>{t("Clusters")}</span><span><strong>{runtimeCount}</strong>{t("Runtimes")}</span><span><strong>{relationshipCount}</strong>{t("Relations")}</span></div></div>
+    {error && <Alert className="topology-alert" type="warning" showIcon message={t("Some topology relationships are unavailable.")} description={error} />}
+    {!relationshipCount && <Alert className="topology-alert" type="info" showIcon message={t("No related clusters") } description={t("Direct Runtime instances are shown; add cluster_relationship rows to connect child clusters.")} />}
+    <div className="topology-levels" aria-label={t("Topology levels")}>
+      <span className="active"><b>1</b><em>{t("Root cluster")}</em></span><i />
+      <span className={clusterCount > 1 ? "active" : ""}><b>2</b><em>{t("Related clusters")}</em></span><i />
+      <span className={runtimeCount ? "active" : ""}><b>3</b><em>{t("Runtime instances")}</em></span>
+      <div className="topology-legend"><span className="eventmesh">{t("EventMesh")}</span><span className="metadata">{t("Metadata")}</span><span className="storage">{t("Storage")}</span><span className="runtime">Runtime</span></div>
+    </div>
+    <div className="topology-toolbar">
+      <Input allowClear prefix={<SearchOutlined />} placeholder={t("Search topology nodes")} value={query} onChange={(event) => updateUrlState("q", event.target.value)} />
+      <Select className="topology-filter" value={component} onChange={(value) => updateUrlState("component", value === "all" ? null : value)} options={[{ value: "all", label: t("All components") }, { value: "eventmesh", label: "EventMesh" }, { value: "metadata", label: t("Metadata") }, { value: "storage", label: t("Storage") }, { value: "runtime", label: "Runtime" }]} />
+      <Select className="topology-filter status-filter" value={topologyStatus} onChange={(value) => updateUrlState("status", value === "all" ? null : value)} options={[{ value: "all", label: t("All status") }, { value: "healthy", label: t("Healthy") }, { value: "warning", label: t("Needs attention") }]} />
+      <span>{hasActiveFilter ? (language === "zh" ? `${matchingCount} 个匹配节点` : `${matchingCount} matching nodes`) : (language === "zh" ? `${resourceNodes.length} 个节点` : `${resourceNodes.length} nodes`)}</span>
+      <div><Button size="small" onClick={() => setCollapsedKeys(new Set(collapsibleTopologyKeys(topology)))}>{t("Collapse all")}</Button><Button size="small" onClick={() => setCollapsedKeys(new Set())}>{t("Expand all")}</Button></div>
+    </div>
+    <div className="topology-layout">
+      <div className="topology-tree-wrap">{visibleTopology ? <div className="topology-canvas" role="tree" aria-label={t("Cluster topology")}><ul><TopologyBranch node={visibleTopology} selectedKey={selected?.key} onSelect={selectNode} collapsedKeys={collapsedKeys} onToggle={toggleNode} forceExpanded={hasActiveFilter} /></ul></div> : <div className="topology-empty"><SearchOutlined /><strong>{t("No matching topology nodes")}</strong></div>}</div>
+      <aside className="topology-inspector">
+        <div className="topology-inspector-title"><span className={`topology-node-icon ${selected?.kind} ${selected ? topologyNodeTone(selected) : ""}`}>{selected?.kind === "runtime" || selected?.kind === "group" ? <CloudServerOutlined /> : <ClusterOutlined />}</span><span><small>{t("Node details")}</small><strong>{selected ? topologyNodeName(selected, t) : "—"}</strong></span></div>
+        <dl><div><dt>{t("Node type")}</dt><dd>{selected ? topologyTypeLabel(selected, t) : "—"}</dd></div><div><dt>{t("Status")}</dt><dd><span className={`topology-node-state ${selected?.status === "Healthy" ? "healthy" : "warning"}`}><i />{t(selected?.status ?? "Unknown")}</span></dd></div><div><dt>{t("Relationship")}</dt><dd>{selected ? topologyRelationLabel(selected.relation, t) : "—"}</dd></div><div><dt>{t("Parent node")}</dt><dd>{selected?.parentName ?? "—"}</dd></div><div><dt>{t("Node ID")}</dt><dd>{selected?.id == null ? "—" : `#${selected.id}`}</dd></div><div><dt>{t("Version")}</dt><dd>{selected?.version ?? "—"}</dd></div><div><dt>{t("Endpoint")}</dt><dd>{selected?.host ? `${selected.host}:${selected.port ?? "—"}` : "—"}</dd></div><div><dt>{t("Child nodes")}</dt><dd>{selected?.children?.length ?? 0}</dd></div></dl>
+        {!!selected?.children?.length && <div className="topology-child-list"><span>{t("Drill down")}</span>{selected.children.map((child) => <button key={child.key} onClick={() => selectNode(child)}><span><strong>{topologyNodeName(child, t)}</strong><small>{topologyTypeLabel(child, t)}</small></span><b>›</b></button>)}</div>}
+        <p>{language === "zh" ? "点击拓扑节点可查看主机、端口及上下级连接关系。" : "Select any node to inspect its endpoint and parent-child relationship."}</p>
+      </aside>
+    </div>
+  </section>;
 }
 
 function RuntimePanel({ runtimes, onView }) {
@@ -507,6 +803,75 @@ function TopicGroupPanel({ topicCount, groupCount }) {
   return <article className="panel topic-panel"><div className="card-title"><h2>{t("Topics")} &amp; {t("Consumer Groups")}</h2><button aria-label={t("Open topics")} onClick={() => navigate("/topics")}>›</button></div><div className="topic-stat"><AppstoreOutlined /><div><span>{t("Topics")}</span><strong>{Number(topicCount ?? 0).toLocaleString()}</strong><small>{t("Current total")}</small></div></div><div className="topic-stat"><DatabaseOutlined /><div><span>{t("Consumer Groups")}</span><strong>{Number(groupCount ?? 0).toLocaleString()}</strong><small>{t("Current total")}</small></div></div></article>;
 }
 
+function healthStatusPresentation(value) {
+  const normalized = String(value ?? "UNKNOWN").toUpperCase();
+  const healthy = ["SUCCESS", "PASSED"].includes(normalized);
+  const pending = ["ING", "CHECKING"].includes(normalized);
+  return { normalized, healthy, pending };
+}
+
+function ClusterHealthPanel({ cluster, runtimes }) {
+  const { language, t } = useI18n();
+  const [target, setTarget] = useState(() => `1:${cluster.backendId ?? cluster.id}`);
+  useEffect(() => setTarget(`1:${cluster.backendId ?? cluster.id}`), [cluster.backendId, cluster.id]);
+  const [type, instanceId] = target.split(":");
+  const { data: checks = [], error, isFetching, refetch } = useQuery({
+    queryKey: ["health-history", type, instanceId],
+    queryFn: () => resourceRepository.getHealthHistory({ type: Number(type), instanceId: Number(instanceId) }),
+    enabled: Number.isFinite(Number(instanceId)) && Number(instanceId) > 0,
+  });
+  const passed = checks.filter((check) => healthStatusPresentation(check.result).healthy).length;
+  const failed = checks.filter((check) => { const status = healthStatusPresentation(check.result); return !status.healthy && !status.pending; }).length;
+  const targetOptions = [{ value: `1:${cluster.backendId ?? cluster.id}`, label: `${t("Cluster")} · ${cluster.name}` }, ...runtimes.map((runtime) => ({ value: `2:${runtime.id}`, label: `${t("Runtime")} · ${runtime.name}` }))];
+  return <section className="panel operational-panel">
+    <div className="operational-heading"><div><span className="topology-heading-icon"><MonitorOutlined /></span><span><h2>{t("Health history")}</h2><p>{t("Database-backed checks for the selected cluster or Runtime during the last 24 hours.")}</p></span></div><div className="operational-actions"><Select value={target} options={targetOptions} onChange={setTarget} /><Button icon={<ReloadOutlined spin={isFetching} />} onClick={() => refetch()}>{t("Refresh")}</Button></div></div>
+    {error ? <ApiError error={error} /> : <>
+      <div className="health-summary-strip"><div><span>{t("Checks")}</span><strong>{checks.length}</strong></div><div className="success"><span>{t("Passed")}</span><strong>{passed}</strong></div><div className={failed ? "failed" : ""}><span>{t("Failed")}</span><strong>{failed}</strong></div><div><span>{t("Latest check")}</span><strong className="compact-value">{formatDateTime(checks[0]?.finishTime ?? checks[0]?.beginTime)}</strong></div></div>
+      <div className="resource-table-wrap"><table className="resource-table health-history-table"><thead><tr><th>{t("Result")}</th><th>{t("Check type")}</th><th>{t("Protocol")}</th><th>{t("Address")}</th><th>{t("Started")}</th><th>{t("Finished")}</th><th>{t("Details")}</th></tr></thead><tbody>{checks.map((check, index) => { const status = healthStatusPresentation(check.result); return <tr key={check.id ?? `${check.beginTime}-${index}`}><td><span className={`status-pill ${status.healthy ? "positive" : status.pending ? "pending" : "negative"}`}><i />{t(status.normalized)}</span></td><td>{check.healthCheckType ?? "—"}</td><td>{check.protocol ?? "—"}</td><td>{check.address ?? "—"}</td><td>{formatDateTime(check.beginTime)}</td><td>{formatDateTime(check.finishTime)}</td><td>{check.resultDesc ?? "—"}</td></tr>; })}</tbody></table>{!checks.length && !isFetching && <div className="empty-state"><HistoryOutlined /><b>{t("No health checks in the selected period")}</b><span>{language === "zh" ? "后端尚未写入该对象最近 24 小时的健康记录。" : "The backend has not stored a check for this target in the last 24 hours."}</span></div>}</div>
+    </>}
+  </section>;
+}
+
+function maskConfigValue(name, value) {
+  if (value == null || value === "") return "—";
+  return /(password|passwd|secret|token|credential|access.?key|private.?key)/i.test(String(name)) ? "••••••••" : String(value);
+}
+
+function ClusterConfigPanel({ cluster }) {
+  const { language, t } = useI18n();
+  const [query, setQuery] = useState("");
+  const { data: configs = [], error, isFetching, refetch } = useQuery({
+    queryKey: ["cluster-config", cluster.backendId],
+    queryFn: () => resourceRepository.getConfigs({ instanceId: cluster.backendId, instanceType: "CLUSTER" }),
+    enabled: Boolean(cluster.backendId),
+  });
+  const filtered = configs.filter((config) => `${config.configName} ${config.description} ${config.businessType}`.toLowerCase().includes(query.toLowerCase()));
+  return <section className="panel operational-panel">
+    <div className="operational-heading"><div><span className="topology-heading-icon"><SettingOutlined /></span><span><h2>{t("Configuration")}</h2><p>{t("Read-only configuration returned by the current backend contract.")}</p></span></div><div className="operational-actions"><Input allowClear prefix={<SearchOutlined />} placeholder={t("Search configuration")} value={query} onChange={(event) => setQuery(event.target.value)} /><Button icon={<ReloadOutlined spin={isFetching} />} onClick={() => refetch()}>{t("Refresh")}</Button></div></div>
+    <Alert className="topology-alert" type="info" showIcon message={t("Configuration is read-only")} description={t("The backend update handler currently returns success without applying changes, so editing remains disabled.")} />
+    {error ? <ApiError error={error} /> : <div className="resource-table-wrap"><table className="resource-table config-table"><thead><tr><th>{t("Configuration key")}</th><th>{t("Value")}</th><th>{t("Value type")}</th><th>{t("Business type")}</th><th>{t("Version range")}</th><th>{t("Description")}</th></tr></thead><tbody>{filtered.map((config, index) => <tr key={config.id ?? `${config.configName}-${index}`}><td><code>{config.configName ?? "—"}</code></td><td><code>{maskConfigValue(config.configName, config.configValue)}</code></td><td>{config.configValueType ?? "—"}</td><td>{config.businessType ?? config.configType ?? "—"}</td><td>{[config.startVersion, config.endVersion].filter(Boolean).join(" — ") || "—"}</td><td>{config.description ?? "—"}</td></tr>)}</tbody></table>{!filtered.length && !isFetching && <div className="empty-state"><SettingOutlined /><b>{t("No configuration records")}</b><span>{language === "zh" ? "后端数据库未返回该集群的配置记录。" : "The backend database returned no configuration records for this cluster."}</span></div>}</div>}
+  </section>;
+}
+
+function MonitoringPage() {
+  const { language, t } = useI18n();
+  const navigate = useNavigate();
+  const { data: result = clusterListPlaceholder, isPlaceholderData, isFetching, error, refetch } = useQuery({
+    queryKey: ["dashboard", "clusters"],
+    queryFn: () => dashboardRepository.getClusters(),
+    placeholderData: clusterListPlaceholder,
+  });
+  const clusters = result.data;
+  const healthy = clusters.filter((cluster) => cluster.status === "Healthy").length;
+  const scored = clusters.filter((cluster) => Number.isFinite(cluster.score));
+  const averageScore = scored.length ? Math.round(scored.reduce((sum, cluster) => sum + cluster.score, 0) / scored.length) : null;
+  return <div className="page resource-page">
+    <ResourceHeading title={t("Health Monitoring")} description={t("Resource health calculated from backend health checks and registered Runtime records.")} loading={isPlaceholderData || isFetching} action={<Button icon={<ReloadOutlined spin={isFetching} />} onClick={() => refetch()}>{t("Refresh")}</Button>} />
+    <section className="overview-metrics resource-metrics"><MetricCard label={t("Clusters")} value={clusters.length} note={t("Registered clusters")} icon={<ClusterOutlined />} /><MetricCard label={t("Healthy")} value={healthy} note={language === "zh" ? `${clusters.length - healthy} 个需要关注` : `${clusters.length - healthy} need attention`} icon={<CheckCircleFilled />} tone="green" /><MetricCard label={t("Average health score")} value={averageScore == null ? "—" : `${averageScore}%`} note={t(averageScore == null ? "Waiting for health data" : "Based on stored checks")} icon={<MonitorOutlined />} /><MetricCard label={t("Runtimes")} value={clusters.reduce((sum, cluster) => sum + Number(cluster.runtimes ?? 0), 0)} note={t("Discovered instances")} icon={<CloudServerOutlined />} /></section>
+    {error ? <ApiError error={error} /> : <section className="panel resource-list-panel"><div className="panel-toolbar"><div><h2>{t("Cluster health")}</h2><span>{language === "zh" ? `${clusters.length} 个受管集群` : `${clusters.length} managed clusters`}</span></div></div><div className="resource-table-wrap"><table className="resource-table monitoring-table"><thead><tr><th>{t("Cluster")}</th><th>{t("Cluster type")}</th><th>{t("Status")}</th><th>{t("Health score")}</th><th>{t("Runtimes")}</th><th>{t("Topics")}</th><th>{t("Actions")}</th></tr></thead><tbody>{clusters.map((cluster) => <tr key={cluster.id} onClick={() => navigate(clusterResourcePath(cluster.name, "health"))}><td><span className="primary-cell"><ClusterOutlined /><span><strong>{cluster.name}</strong><small>{cluster.clusterId}</small></span></span></td><td><ClusterTypeBadge type={cluster.clusterType} /></td><td><HealthTag status={cluster.status} /></td><td>{Number.isFinite(cluster.score) ? `${cluster.score}%` : "—"}</td><td>{cluster.runtimes ?? "—"}</td><td>{cluster.topics ?? "—"}</td><td><Button size="small" icon={<HistoryOutlined />}>{t("View health")}</Button></td></tr>)}</tbody></table>{!clusters.length && !isFetching && <div className="empty-state"><MonitorOutlined /><b>{t("No clusters found")}</b></div>}</div></section>}
+  </div>;
+}
+
 function ChangesPanel({ changes, onView }) {
   const { t } = useI18n();
   return <article className="panel changes-panel"><div className="card-title"><h2>{t("Recent changes")}</h2><button className="text-link" onClick={onView}>{t("View all")}</button></div><div className="change-list">{changes.slice(0, 5).map((item) => <ChangeItem key={item.time} item={item} />)}</div><button className="text-link bottom-link" onClick={onView}>{t("View all changes")}</button></article>;
@@ -522,8 +887,8 @@ function ProtectedConsole() {
   const { checking, authenticated } = useAuth();
   const location = useLocation();
   if (checking) return <div className="auth-loading"><Spin size="large" /><span>EventMesh Dashboard</span></div>;
-  if (!authenticated) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  return <Shell><Routes><Route path="/overview" element={<OverviewPage />} /><Route path="/clusters" element={<ClusterOverview />} /><Route path="/clusters/:clusterId" element={<ClusterDetail />} /><Route path="/topics" element={<ResourcePage type="topics" />} /><Route path="/groups" element={<ResourcePage type="groups" />} /><Route path="/connections" element={<ResourcePage type="connections" />} /><Route path="/operations" element={<PermissionBoundary permission={PERMISSIONS.VIEW_OPERATIONS}><ResourcePage type="operations" /></PermissionBoundary>} /><Route path="/organization/members" element={<PermissionBoundary permission={PERMISSIONS.MANAGE_MEMBERS}><MembersPage /></PermissionBoundary>} /><Route path="*" element={<Navigate to="/overview" replace />} /></Routes></Shell>;
+  if (!authenticated) return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}${location.hash}` }} />;
+  return <Shell><Routes><Route path="/overview" element={<OverviewPage />} /><Route path="/clusters" element={<ClusterOverview />} /><Route path="/clusters/:clusterId" element={<ClusterDetail />} /><Route path="/clusters/:clusterId/:view" element={<ClusterDetail />} /><Route path="/topics" element={<ResourcePage type="topics" />} /><Route path="/groups" element={<ResourcePage type="groups" />} /><Route path="/connections" element={<ResourcePage type="connections" />} /><Route path="/monitoring" element={<MonitoringPage />} /><Route path="/operations" element={<PermissionBoundary permission={PERMISSIONS.VIEW_OPERATIONS}><ResourcePage type="operations" /></PermissionBoundary>} /><Route path="/organization/members" element={<PermissionBoundary permission={PERMISSIONS.MANAGE_MEMBERS}><MembersPage /></PermissionBoundary>} /><Route path="*" element={<Navigate to="/overview" replace />} /></Routes></Shell>;
 }
 
 export function App() {

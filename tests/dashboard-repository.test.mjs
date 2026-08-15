@@ -24,6 +24,16 @@ function liveClient({ failTopics = false } = {}) {
       if (url === dashboardEndpoints.operations) {
         return { data: { data: [{ id: 501, state: 2, content: "Started runtime-a", result: "Success", createTime: "2026-08-01T09:00:00" }] } };
       }
+      if (url === dashboardEndpoints.topology) {
+        return { data: { data: [{
+          id: 601,
+          name: "metadata-cluster",
+          clusterType: "EVENTMESH_JVM_META",
+          nodeType: "CLUSTER",
+          deployStatusType: "CREATE_SUCCESS",
+          children: [{ id: 602, name: "metadata-runtime", nodeType: "RUNTIME", host: "10.0.1.1", port: 8848, deployStatusType: "CREATE_SUCCESS" }],
+        }] } };
+      }
       throw new Error(`unexpected POST ${url}`);
     },
     async get(url) {
@@ -39,6 +49,7 @@ test("uses validated live controller and database data without fabricated metric
 
   assert.equal(result.data.cluster.id, "11");
   assert.equal(result.data.cluster.name, "live-eventmesh");
+  assert.equal(result.data.cluster.clusterType, "EVENTMESH_JVM_CLUSTER");
   assert.equal(result.data.cluster.version, "1.12.0");
   assert.equal(result.data.cluster.runtimes, 1);
   assert.equal(result.data.topicCount, 2);
@@ -46,11 +57,17 @@ test("uses validated live controller and database data without fabricated metric
   assert.equal(result.data.runtimes[0].host, "10.0.0.1");
   assert.equal(result.data.runtimes[0].cpu, null);
   assert.equal(result.data.runtimes[0].connections, 1);
+  assert.equal(result.data.topology.name, "live-eventmesh");
+  assert.equal(result.data.topology.children[0].name, "metadata-cluster");
+  assert.equal(result.data.topology.children[0].children[0].host, "10.0.1.1");
+  assert.equal(result.data.topology.children[1].kind, "group");
+  assert.equal(result.data.topology.children[1].children[0].relation, "DIRECT_RUNTIME");
   assert.equal(result.data.recentChanges[0].title, "Started runtime-a");
   assert.equal(result.meta.source, "mixed");
   assert.equal(result.meta.sources.cluster, "api");
   assert.equal(result.meta.sources.throughput, "unavailable");
   assert.equal(result.meta.sources.changes, "api");
+  assert.equal(result.meta.sources.topology, "api");
 });
 
 test("keeps successful endpoints when a sibling endpoint fails", async () => {
@@ -61,6 +78,55 @@ test("keeps successful endpoints when a sibling endpoint fails", async () => {
   assert.equal(result.data.groupCount, 1);
   assert.equal(result.meta.sources.topics, "unavailable");
   assert.match(result.meta.fallbackReason, /topics unavailable/);
+});
+
+test("keeps clusters when one cluster-type query is unavailable", async () => {
+  const client = liveClient();
+  const originalPost = client.post;
+  client.post = async (url, body) => {
+    if (url === dashboardEndpoints.clusters && body.clusterType === "STORAGE_KAFKA_CLUSTER") throw new Error("Kafka query unavailable");
+    return originalPost(url, body);
+  };
+  const repository = createDashboardRepository(client);
+
+  const result = await repository.getClusters();
+
+  assert.equal(result.data.length, 1);
+  assert.equal(result.data[0].name, "live-eventmesh");
+});
+
+test("adds direct cluster dependencies to the cluster overview", async () => {
+  const repository = createDashboardRepository(liveClient());
+  const result = await repository.getClusters();
+
+  assert.equal(result.data[0].topologyAvailable, true);
+  assert.deepEqual(result.data[0].dependencies, [{
+    id: "601",
+    name: "metadata-cluster",
+    clusterType: "EVENTMESH_JVM_META",
+    status: "Healthy",
+  }]);
+  assert.deepEqual(result.data[0].dependents, []);
+  assert.equal(result.meta.sources.topology, "api");
+});
+
+test("derives which listed clusters are depended on by other clusters", async () => {
+  const repository = createDashboardRepository({
+    async post(url, body) {
+      if (url === dashboardEndpoints.clusters) return { data: [{ id: 1, name: "eventmesh-a", clusterType: "EVENTMESH_JVM_CLUSTER" }, { id: 2, name: "eventmesh-b", clusterType: "EVENTMESH_JVM_CLUSTER" }] };
+      if (url === dashboardEndpoints.topology) return { data: body.clusterId === 1 ? [{ id: 2, name: "eventmesh-b", clusterType: "EVENTMESH_JVM_CLUSTER", nodeType: "CLUSTER", status: 1 }] : [] };
+      if ([dashboardEndpoints.runtimes, dashboardEndpoints.topics, dashboardEndpoints.groups, dashboardEndpoints.connections].includes(url)) return { data: [] };
+      throw new Error(`unexpected POST ${url}`);
+    },
+    async get(url) {
+      assert.equal(url, dashboardEndpoints.health);
+      return { data: { abnormalNum: 0, allNum: 0 } };
+    },
+  });
+
+  const result = await repository.getClusters();
+  assert.equal(result.data[0].dependencies[0].name, "eventmesh-b");
+  assert.equal(result.data[1].dependents[0].name, "eventmesh-a");
 });
 
 test("does not fall back to mock production data when the dashboard API is unavailable", async () => {
