@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiOutlined,
   AppstoreOutlined,
@@ -236,15 +236,15 @@ function buildComponents({ cluster, topology, runtimes, topics, groups, connecti
   return { components, eventMesh, metadata, stores, access: components.find((item) => item.id === "access"), resources: components.find((item) => item.id === "resources") };
 }
 
-function MiniNode({ item, onClick, selected }) {
-  return <button type="button" className={`et-mini-node ${selected ? "selected" : ""}`} onClick={onClick}>
+function MiniNode({ item, onClick, selected, searchState = "" }) {
+  return <button type="button" className={`et-mini-node ${selected ? "selected" : ""} ${searchState}`} onClick={onClick}>
     <InstanceGlyph tone={item.tone} />
     <strong>{item.title}</strong>
     <small><i className={normalizedStatus(item.status)} />{item.subtitle}</small>
   </button>;
 }
 
-function ClusterCard({ component, language, onOpen, compact = false }) {
+function ClusterCard({ component, language, onOpen, onHover, compact = false }) {
   const open = () => onOpen(component.id);
   return <article
     className={`et-cluster-card ${component.tone} ${compact ? "compact" : ""}`}
@@ -252,6 +252,8 @@ function ClusterCard({ component, language, onOpen, compact = false }) {
     tabIndex={0}
     aria-label={`${language === "zh" ? "进入" : "Open"} ${component.title}`}
     onClick={open}
+    onMouseEnter={() => onHover?.(component.id)}
+    onMouseLeave={() => onHover?.(null)}
     onKeyDown={(event) => {
       if (event.target !== event.currentTarget) return;
       if (event.key === "Enter" || event.key === " ") {
@@ -269,7 +271,7 @@ function ClusterCard({ component, language, onOpen, compact = false }) {
   </article>;
 }
 
-function EventMeshCard({ component, metadata, language, onOpen }) {
+function EventMeshCard({ component, metadata, language, onOpen, onHover }) {
   const open = () => onOpen(component.id);
   return <article
     className="et-eventmesh-card"
@@ -277,6 +279,8 @@ function EventMeshCard({ component, metadata, language, onOpen }) {
     tabIndex={0}
     aria-label={`${language === "zh" ? "进入" : "Open"} ${component.title}`}
     onClick={open}
+    onMouseEnter={() => onHover?.(component.id)}
+    onMouseLeave={() => onHover?.(null)}
     onKeyDown={(event) => {
       if (event.target !== event.currentTarget) return;
       if (event.key === "Enter" || event.key === " ") {
@@ -304,48 +308,54 @@ function EventMeshCard({ component, metadata, language, onOpen }) {
   </article>;
 }
 
-function GlobalFlowEdges({ stores }) {
+function GlobalFlowEdges({ stores, activeId }) {
+  const singleStore = stores.length === 1;
   const storeWidth = 260;
   const storeGap = 15;
   const totalWidth = stores.length ? stores.length * storeWidth + (stores.length - 1) * storeGap : 0;
   const storeStart = (1180 - totalWidth) / 2;
-  const targets = stores.map((_, index) => storeStart + index * (storeWidth + storeGap) + storeWidth / 2);
+  const targets = stores.map((_, index) => singleStore ? 600 : storeStart + index * (storeWidth + storeGap) + storeWidth / 2);
   const firstTarget = targets[0] ?? 590;
   const lastTarget = targets.at(-1) ?? 590;
   const branchLeft = Math.min(600, firstTarget);
   const branchRight = Math.max(600, lastTarget);
   return <div className="et-stage-connectors" aria-hidden="true">
-    <span className="et-flow-edge access-line"><span className="et-edge-head"><ArrowRightOutlined /></span><span className="et-flow-arrow"><ArrowRightOutlined /></span></span>
-    <span className="et-flow-edge resource-line"><span className="et-edge-head"><ArrowRightOutlined /></span><span className="et-flow-arrow"><ArrowRightOutlined /></span></span>
-    {!!stores.length && <span className="et-store-network">
-      <i className="et-store-trunk" />
-      <i className="et-store-branch" style={{ left: branchLeft, width: Math.max(1, branchRight - branchLeft) }} />
-      {targets.map((target, index) => <i className={`et-store-drop ${stores[index].tone}`} key={stores[index].id} style={{ left: target }}><span className="et-store-head"><ArrowDownOutlined /></span><span className="et-store-moving-arrow"><ArrowDownOutlined /></span></i>)}
+    <span className={`et-flow-edge access-line ${activeId === "access" || activeId === "eventmesh" ? "active" : ""}`}><span className="et-edge-head"><ArrowRightOutlined /></span><span className="et-flow-arrow"><ArrowRightOutlined /></span></span>
+    <span className={`et-flow-edge resource-line ${activeId === "resources" || activeId === "eventmesh" ? "active" : ""}`}><span className="et-edge-head"><ArrowRightOutlined /></span><span className="et-flow-arrow"><ArrowRightOutlined /></span></span>
+    {!!stores.length && <span className={`et-store-network ${singleStore ? "single" : "branched"}`}>
+      {singleStore ? <i className={`et-store-single ${stores[0].tone} ${activeId === "eventmesh" || activeId === stores[0].id ? "active" : ""}`} style={{ left: targets[0] }}><span className="et-store-head"><ArrowDownOutlined /></span></i> : <>
+        <i className="et-store-trunk" />
+        <i className="et-store-branch" style={{ left: branchLeft, width: Math.max(1, branchRight - branchLeft) }} />
+        {targets.map((target, index) => <i className={`et-store-drop ${stores[index].tone} ${activeId === "eventmesh" || activeId === stores[index].id ? "active" : ""}`} key={stores[index].id} style={{ left: target }}><span className="et-store-head"><ArrowDownOutlined /></span></i>)}
+      </>}
     </span>}
   </div>;
 }
 
 function GlobalStage({ model, language, query, onOpen }) {
+  const [activeId, setActiveId] = useState(null);
   const matches = (component) => !query || `${component.title} ${component.subtitle} ${component.clusterType ?? ""}`.toLowerCase().includes(query.toLowerCase());
   return <div className="et-global-stage">
-    <GlobalFlowEdges stores={model.stores} />
-    <div className={`et-global-access ${model.access && matches(model.access) ? "" : "muted"}`}>
-      {model.access ? <ClusterCard component={model.access} language={language} onOpen={onOpen} /> : <div className="et-optional-empty"><LinkOutlined /><span>{language === "zh" ? "暂无客户端连接" : "No client connections"}</span></div>}
+    <GlobalFlowEdges stores={model.stores} activeId={activeId} />
+    <div className={`et-global-access ${model.access && matches(model.access) ? (query ? "search-hit" : "") : "muted"}`}>
+      {model.access ? <ClusterCard component={model.access} language={language} onOpen={onOpen} onHover={setActiveId} /> : <div className="et-optional-empty"><LinkOutlined /><span>{language === "zh" ? "暂无客户端连接" : "No client connections"}</span></div>}
     </div>
-    <div className={`et-global-core ${matches(model.eventMesh) ? "" : "muted"}`}><EventMeshCard component={model.eventMesh} metadata={model.metadata} language={language} onOpen={onOpen} /></div>
-    <div className={`et-global-resources ${model.resources && matches(model.resources) ? "" : "muted"}`}>
-      {model.resources ? <ClusterCard component={model.resources} language={language} onOpen={onOpen} /> : <div className="et-optional-empty"><AppstoreOutlined /><span>{language === "zh" ? "暂无事件资源" : "No event resources"}</span></div>}
+    <div className={`et-global-core ${matches(model.eventMesh) ? (query ? "search-hit" : "") : "muted"}`}><EventMeshCard component={model.eventMesh} metadata={model.metadata} language={language} onOpen={onOpen} onHover={setActiveId} /></div>
+    <div className={`et-global-resources ${model.resources && matches(model.resources) ? (query ? "search-hit" : "") : "muted"}`}>
+      {model.resources ? <ClusterCard component={model.resources} language={language} onOpen={onOpen} onHover={setActiveId} /> : <div className="et-optional-empty"><AppstoreOutlined /><span>{language === "zh" ? "暂无事件资源" : "No event resources"}</span></div>}
     </div>
-    <div className="et-store-caption"><i />{language === "zh" ? "消息中间件（Event Store）" : "Message middleware (Event Store)"}</div>
-    <div className="et-global-stores">
-      {model.stores.map((component) => <div key={component.id} className={matches(component) ? "" : "muted"}><ClusterCard compact component={component} language={language} onOpen={onOpen} /></div>)}
+    <div className={`et-store-caption ${model.stores.length === 1 ? "single" : ""}`}><i />{language === "zh" ? "消息中间件（Event Store）" : "Message middleware (Event Store)"}</div>
+    <div className={`et-global-stores ${model.stores.length === 1 ? "single" : ""}`}>
+      {model.stores.map((component) => <div key={component.id} className={matches(component) ? (query ? "search-hit" : "") : "muted"}><ClusterCard compact component={component} language={language} onOpen={onOpen} onHover={setActiveId} /></div>)}
       {!model.stores.length && <div className="et-store-empty"><DatabaseOutlined /><span>{language === "zh" ? "后端未返回消息存储依赖" : "No event-store dependency returned"}</span></div>}
     </div>
   </div>;
 }
 
 function ComponentStage({ component, language, query, selectedKey, onSelect, onDrill }) {
-  const nodes = component.nodes.filter((node) => !query || `${node.title} ${node.subtitle} ${node.host ?? ""} ${node.port ?? ""}`.toLowerCase().includes(query.toLowerCase()));
+  const normalizedQuery = query.trim().toLowerCase();
+  const nodeMatches = (node) => !normalizedQuery || `${node.title} ${node.subtitle} ${node.host ?? ""} ${node.port ?? ""}`.toLowerCase().includes(normalizedQuery);
+  const matchingCount = component.nodes.filter(nodeMatches).length;
   return <div className={`et-component-stage ${component.tone}`}>
     <section className="et-component-hero">
       <span className="et-card-icon">{iconFor(component.kind)}</span>
@@ -355,11 +365,11 @@ function ComponentStage({ component, language, query, selectedKey, onSelect, onD
     </section>
     {component.id === "eventmesh" && component.metadata?.length > 0 && <section className="et-related-components"><div><strong>{language === "zh" ? "注册与元数据组件" : "Registry and metadata"}</strong><span>{language === "zh" ? "点击组件继续查看内部集群" : "Open a component to inspect its internal cluster"}</span></div>{component.metadata.map((item) => <button key={item.id} type="button" onClick={() => onDrill(item.id)}><DatabaseOutlined /><span><strong>{item.title}</strong><small>{item.nodes.length} {language === "zh" ? "个实例" : "instances"}</small></span><b>→</b></button>)}</section>}
     <section className="et-instance-section">
-      <div className="et-instance-heading"><span><strong>{language === "zh" ? "内部节点" : "Internal nodes"}</strong><small>{language === "zh" ? "选择节点后在右侧查看数据库资源字段" : "Select a node to inspect database-backed fields"}</small></span><em>{nodes.length} / {component.nodes.length}</em></div>
+      <div className="et-instance-heading"><span><strong>{language === "zh" ? "内部节点" : "Internal nodes"}</strong><small>{language === "zh" ? "选择节点后在右侧查看数据库资源字段" : "Select a node to inspect database-backed fields"}</small></span><em>{matchingCount} / {component.nodes.length}</em></div>
       <div className="et-instance-grid">
-        {nodes.map((node) => <MiniNode key={node.key} item={node} selected={selectedKey === node.key} onClick={() => onSelect(node)} />)}
+        {component.nodes.map((node) => <MiniNode key={node.key} item={node} selected={selectedKey === node.key} searchState={normalizedQuery ? (nodeMatches(node) ? "search-hit" : "search-dim") : ""} onClick={() => onSelect(node)} />)}
       </div>
-      {!nodes.length && <div className="et-component-empty"><SearchOutlined /><strong>{component.nodes.length ? (language === "zh" ? "没有匹配节点" : "No matching nodes") : (language === "zh" ? "后端未返回该组件的实例" : "The backend returned no instances")}</strong><span>{language === "zh" ? "当前页面不会生成演示节点。" : "This view does not generate demo nodes."}</span></div>}
+      {!component.nodes.length && <div className="et-component-empty"><SearchOutlined /><strong>{language === "zh" ? "后端未返回该组件的实例" : "The backend returned no instances"}</strong><span>{language === "zh" ? "当前页面不会生成演示节点。" : "This view does not generate demo nodes."}</span></div>}
     </section>
   </div>;
 }
@@ -378,6 +388,8 @@ function Inspector({ node, language, onClose }) {
 export function TopologyExperience({ cluster, topology, runtimes = [], topics = [], groups = [], connections = [], error, loading, fetching, fetchedAt, onRefresh, onExit }) {
   const { language } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
+  const demoTimers = useRef([]);
+  const [demoRunning, setDemoRunning] = useState(false);
   const model = useMemo(() => buildComponents({ cluster, topology, runtimes, topics, groups, connections, language }), [cluster, connections, groups, language, runtimes, topics, topology]);
   const componentId = searchParams.get("component");
   const nodeKey = searchParams.get("node");
@@ -389,18 +401,40 @@ export function TopologyExperience({ cluster, topology, runtimes = [], topics = 
   const allNodes = componentNodes.length;
   const healthyNodes = componentNodes.filter((node) => normalizedStatus(node.status ?? node.raw?.status ?? node.raw?.state) === "healthy").length;
   const updateParams = (changes) => {
-    const next = new URLSearchParams(searchParams);
-    Object.entries(changes).forEach(([key, value]) => value == null || value === "" ? next.delete(key) : next.set(key, value));
-    setSearchParams(next, { replace: true });
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      Object.entries(changes).forEach(([key, value]) => value == null || value === "" ? next.delete(key) : next.set(key, value));
+      return next;
+    }, { replace: true });
   };
-  const openComponent = (id) => updateParams({ component: id, node: null });
+  const openComponent = (id) => updateParams({ component: id, node: null, q: null });
   const selectNode = (node) => updateParams({ node: node.key });
   const goBack = () => {
     if (selectedNode) updateParams({ node: null });
     else if (currentComponent) updateParams({ component: null, node: null });
     else onExit();
   };
-  const goGlobal = () => updateParams({ component: null, node: null });
+  const goGlobal = () => updateParams({ component: null, node: null, q: null });
+  const stopDemo = () => {
+    demoTimers.current.forEach((timer) => window.clearTimeout(timer));
+    demoTimers.current = [];
+    setDemoRunning(false);
+  };
+  const playDemo = () => {
+    if (demoRunning) {
+      stopDemo();
+      return;
+    }
+    stopDemo();
+    setDemoRunning(true);
+    goGlobal();
+    demoTimers.current = [
+      window.setTimeout(() => openComponent("eventmesh"), 700),
+      window.setTimeout(() => model.eventMesh.nodes[0] && updateParams({ component: "eventmesh", node: model.eventMesh.nodes[0].key }), 1_800),
+      window.setTimeout(() => setDemoRunning(false), 3_000),
+    ];
+  };
+  useEffect(() => () => demoTimers.current.forEach((timer) => window.clearTimeout(timer)), []);
   const step = selectedNode ? 3 : currentComponent ? 2 : 1;
   return <div className="topology-experience">
     <header className="et-topbar">
@@ -411,14 +445,18 @@ export function TopologyExperience({ cluster, topology, runtimes = [], topics = 
     </header>
     <div className="et-commandbar">
       <button type="button" className="et-back" onClick={goBack}>← <span>{language === "zh" ? "返回" : "Back"}</span></button>
-      <div className="et-breadcrumb"><strong>{currentComponent?.title ?? (language === "zh" ? "全局拓扑" : "Global topology")}</strong></div>
-      <ol className="et-steps"><li className={step >= 1 ? "active" : ""}><i>1</i><span>{language === "zh" ? "全局总览" : "Global"}</span></li><li className={step >= 2 ? "active" : ""}><i>2</i><span>{language === "zh" ? "集群组件" : "Component"}</span></li><li className={step >= 3 ? "active" : ""}><i>3</i><span>{language === "zh" ? "节点实例" : "Instance"}</span></li></ol>
+      <nav className="et-breadcrumb" aria-label={language === "zh" ? "拓扑路径" : "Topology path"}>
+        <button type="button" className={!currentComponent ? "current" : ""} onClick={goGlobal} disabled={!currentComponent}>{language === "zh" ? "全局拓扑" : "Global topology"}</button>
+        {currentComponent && <><span>/</span><button type="button" className={!selectedNode ? "current" : ""} onClick={() => updateParams({ node: null })} disabled={!selectedNode}>{currentComponent.title}</button></>}
+        {selectedNode && <><span>/</span><strong>{selectedNode.title}</strong></>}
+      </nav>
+      <ol className="et-steps"><li className={step === 1 ? "active" : "done"}><i>1</i><span>{language === "zh" ? "全局总览" : "Global"}</span></li><li className={step === 2 ? "active" : step > 2 ? "done" : ""}><i>2</i><span>{language === "zh" ? "集群组件" : "Component"}</span></li><li className={step === 3 ? "active" : ""}><i>3</i><span>{language === "zh" ? "节点实例" : "Instance"}</span></li></ol>
       <label className="et-search"><SearchOutlined /><input value={query} onChange={(event) => updateParams({ q: event.target.value })} placeholder={language === "zh" ? "搜索节点 / 集群" : "Search nodes / clusters"} /></label>
       <button type="button" className="et-refresh" onClick={onRefresh}><ReloadOutlined spin={fetching} />{language === "zh" ? "刷新数据" : "Refresh"}</button>
     </div>
     <main className="et-workbench">
       <section className="et-main-panel">
-        <header className="et-panel-heading"><div><h1>{currentComponent?.title ?? (language === "zh" ? "全局拓扑" : "Global topology")}</h1><p>{currentComponent ? (language === "zh" ? "查看组件内部集群，选择节点后在右侧检查资源数据" : "Inspect the internal cluster and select a node for resource data") : (language === "zh" ? "先看系统边界：应用如何接入、EventMesh 如何转发、事件最终流向哪里" : "Understand system boundaries, EventMesh routing, and event destinations")}</p></div><div><button type="button" className="et-demo" onClick={() => currentComponent ? currentComponent.nodes[0] && selectNode(currentComponent.nodes[0]) : openComponent("eventmesh")}>▶ {language === "zh" ? "演示下钻" : "Demo drill-down"}</button><button type="button" onClick={goGlobal}>⌂ {language === "zh" ? "回到全局" : "Global"}</button></div></header>
+        <header className="et-panel-heading"><div><h1>{currentComponent?.title ?? (language === "zh" ? "全局拓扑" : "Global topology")}</h1><p>{currentComponent ? (language === "zh" ? "查看组件内部集群，选择节点后在右侧检查资源数据" : "Inspect the internal cluster and select a node for resource data") : (language === "zh" ? "先看系统边界：应用如何接入、EventMesh 如何转发、事件最终流向哪里" : "Understand system boundaries, EventMesh routing, and event destinations")}</p></div><div><button type="button" className="et-demo" onClick={playDemo}>{demoRunning ? "■" : "▶"} {language === "zh" ? (demoRunning ? "停止演示" : "演示下钻") : (demoRunning ? "Stop demo" : "Demo drill-down")}</button><button type="button" onClick={goGlobal}>⌂ {language === "zh" ? "回到全局" : "Global"}</button></div></header>
         <div className="et-legend"><span><b>{language === "zh" ? "状态" : "Status"}</b></span><span><i className="healthy" />{language === "zh" ? "正常" : "Healthy"}</span><span><i className="warning" />{language === "zh" ? "警告" : "Warning"}</span><span><i className="error" />{language === "zh" ? "异常" : "Error"}</span><span><i className="unknown" />{language === "zh" ? "未知" : "Unknown"}</span><em>{language === "zh" ? "点击集群卡片逐层进入；点击节点查看右侧详情" : "Open cluster cards, then select nodes for details"}</em></div>
         {error && <Alert className="et-api-alert" type="warning" showIcon message={language === "zh" ? "部分拓扑关系暂不可用" : "Some topology relationships are unavailable"} description={error} />}
         <div className="et-canvas-scroll">
