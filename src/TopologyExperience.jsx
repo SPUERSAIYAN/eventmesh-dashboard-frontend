@@ -5,11 +5,15 @@ import {
   ArrowDownOutlined,
   ArrowRightOutlined,
   CloudServerOutlined,
+  CheckCircleOutlined,
   ClusterOutlined,
   CloseOutlined,
+  CloseCircleOutlined,
   DatabaseOutlined,
+  ExclamationCircleOutlined,
   InfoCircleOutlined,
   LinkOutlined,
+  QuestionCircleOutlined,
   ReloadOutlined,
   SearchOutlined,
   TeamOutlined,
@@ -22,14 +26,23 @@ import { useI18n } from "./i18n.jsx";
 function normalizedStatus(value) {
   const status = String(value ?? "Unknown").toLowerCase();
   if (["healthy", "running", "online", "success", "started", "normal", "active", "connected", "stable", "1", "true"].some((item) => status.includes(item))) return "healthy";
-  if (["warning", "abnormal", "failed", "error", "offline", "stopped", "inactive", "disconnected", "0", "false"].some((item) => status.includes(item))) return "warning";
+  if (["failed", "failure", "error", "abnormal", "critical", "fatal", "offline", "stopped", "inactive", "disconnected", "0", "false"].some((item) => status.includes(item))) return "error";
+  if (["warning", "warn", "degraded", "unstable", "partial", "delayed"].some((item) => status.includes(item))) return "warning";
   return "unknown";
 }
 
 function statusCopy(value, language) {
   const normalized = normalizedStatus(value);
-  if (language === "zh") return normalized === "healthy" ? "正常" : normalized === "warning" ? "警告" : "未知";
-  return normalized === "healthy" ? "Healthy" : normalized === "warning" ? "Warning" : "Unknown";
+  if (language === "zh") return normalized === "healthy" ? "正常" : normalized === "warning" ? "警告" : normalized === "error" ? "异常" : "未知";
+  return normalized === "healthy" ? "Healthy" : normalized === "warning" ? "Warning" : normalized === "error" ? "Abnormal" : "Unknown";
+}
+
+function aggregateStatus(nodes) {
+  const tones = nodes.map((item) => normalizedStatus(item.status ?? item.raw?.status ?? item.raw?.state));
+  if (tones.includes("error")) return "Error";
+  if (tones.includes("warning")) return "Warning";
+  if (tones.includes("unknown")) return "Unknown";
+  return "Healthy";
 }
 
 function displayValue(value) {
@@ -139,9 +152,19 @@ function rowsForNode(node, language) {
   ];
 }
 
+function StatusIcon({ status }) {
+  const tone = normalizedStatus(status);
+  const Icon = tone === "healthy" ? CheckCircleOutlined : tone === "warning" ? ExclamationCircleOutlined : tone === "error" ? CloseCircleOutlined : QuestionCircleOutlined;
+  return <span className={`et-status-icon ${tone}`} aria-hidden="true"><Icon /></span>;
+}
+
 function StatusPill({ status, language }) {
   const tone = normalizedStatus(status);
-  return <span className={`et-status ${tone}`}><i />{statusCopy(status, language)}</span>;
+  return <span className={`et-status ${tone}`}><StatusIcon status={status} />{statusCopy(status, language)}</span>;
+}
+
+function StatusLegendItem({ status, language }) {
+  return <span className={`et-legend-item ${normalizedStatus(status)}`}><StatusIcon status={status} />{statusCopy(status, language)}</span>;
 }
 
 function InstanceGlyph({ tone = "blue" }) {
@@ -226,28 +249,28 @@ function buildComponents({ cluster, topology, runtimes, topics, groups, connecti
   };
   const components = [eventMesh, ...metadata, ...stores];
   if (accessNodes.length) components.push({
-    id: "access", kind: "access", title: zh ? "应用接入" : "Application access", subtitle: "Producers / Consumers", tone: "green", status: accessNodes.some((item) => normalizedStatus(item.status) === "warning") ? "Warning" : "Healthy", nodes: accessNodes,
+    id: "access", kind: "access", title: zh ? "应用接入" : "Application access", subtitle: "Producers / Consumers", tone: "green", status: aggregateStatus(accessNodes), nodes: accessNodes,
     footer: [[zh ? "连接" : "Connections", accessNodes.length], [zh ? "Runtime" : "Runtimes", new Set(connections.map((item) => item.runtimeId ?? `${item.runtimeHost}:${item.runtimePort}`)).size]],
   });
   if (topicNodes.length || groupNodes.length) components.push({
-    id: "resources", kind: "resource", title: zh ? "事件资源" : "Event resources", subtitle: "Topic / Consumer Group", tone: "orange", status: [...topicNodes, ...groupNodes].some((item) => normalizedStatus(item.status) === "warning") ? "Warning" : "Healthy", nodes: [...topicNodes, ...groupNodes],
+    id: "resources", kind: "resource", title: zh ? "事件资源" : "Event resources", subtitle: "Topic / Consumer Group", tone: "orange", status: aggregateStatus([...topicNodes, ...groupNodes]), nodes: [...topicNodes, ...groupNodes],
     footer: [[zh ? "主题" : "Topics", topicNodes.length], [zh ? "消费组" : "Groups", groupNodes.length]],
   });
   return { components, eventMesh, metadata, stores, access: components.find((item) => item.id === "access"), resources: components.find((item) => item.id === "resources") };
 }
 
 function MiniNode({ item, onClick, selected, searchState = "" }) {
-  return <button type="button" className={`et-mini-node ${selected ? "selected" : ""} ${searchState}`} onClick={onClick}>
+  return <button type="button" className={`et-mini-node status-${normalizedStatus(item.status)} ${selected ? "selected" : ""} ${searchState}`} onClick={onClick}>
     <InstanceGlyph tone={item.tone} />
     <strong>{item.title}</strong>
-    <small><i className={normalizedStatus(item.status)} />{item.subtitle}</small>
+    <small><StatusIcon status={item.status} />{item.subtitle}</small>
   </button>;
 }
 
 function ClusterCard({ component, language, onOpen, onHover, compact = false }) {
   const open = () => onOpen(component.id);
   return <article
-    className={`et-cluster-card ${component.tone} ${compact ? "compact" : ""}`}
+    className={`et-cluster-card ${component.tone} status-${normalizedStatus(component.status)} ${compact ? "compact" : ""}`}
     role="button"
     tabIndex={0}
     aria-label={`${language === "zh" ? "进入" : "Open"} ${component.title}`}
@@ -274,7 +297,7 @@ function ClusterCard({ component, language, onOpen, onHover, compact = false }) 
 function EventMeshCard({ component, metadata, language, onOpen, onHover }) {
   const open = () => onOpen(component.id);
   return <article
-    className="et-eventmesh-card"
+    className={`et-eventmesh-card status-${normalizedStatus(component.status)}`}
     role="button"
     tabIndex={0}
     aria-label={`${language === "zh" ? "进入" : "Open"} ${component.title}`}
@@ -300,7 +323,7 @@ function EventMeshCard({ component, metadata, language, onOpen, onHover }) {
     <div className="et-runtime-block">
       <div><strong>Runtime {language === "zh" ? "集群" : "cluster"}</strong><span>{language === "zh" ? "协议转换 · 路由 · 转发" : "Protocol · routing · delivery"}</span></div>
       <div className="et-runtime-preview">
-        {component.nodes.slice(0, 3).map((node) => <div key={node.key}><InstanceGlyph /><strong>{node.title}</strong><small><i className={normalizedStatus(node.status)} />{statusCopy(node.status, language)}</small></div>)}
+        {component.nodes.slice(0, 3).map((node) => <div className={`status-${normalizedStatus(node.status)}`} key={node.key}><InstanceGlyph /><strong>{node.title}</strong><small><StatusIcon status={node.status} />{statusCopy(node.status, language)}</small></div>)}
         {!component.nodes.length && <div className="et-no-instance wide"><CloudServerOutlined /><span>{language === "zh" ? "后端未返回 Runtime" : "No Runtime returned"}</span></div>}
       </div>
     </div>
@@ -308,7 +331,7 @@ function EventMeshCard({ component, metadata, language, onOpen, onHover }) {
   </article>;
 }
 
-function GlobalFlowEdges({ stores, activeId }) {
+function GlobalFlowEdges({ stores, activeId, hasAccess, hasResources }) {
   const singleStore = stores.length === 1;
   const storeWidth = 260;
   const storeGap = 15;
@@ -320,8 +343,8 @@ function GlobalFlowEdges({ stores, activeId }) {
   const branchLeft = Math.min(600, firstTarget);
   const branchRight = Math.max(600, lastTarget);
   return <div className="et-stage-connectors" aria-hidden="true">
-    <span className={`et-flow-edge access-line ${activeId === "access" || activeId === "eventmesh" ? "active" : ""}`}><span className="et-edge-head"><ArrowRightOutlined /></span><span className="et-flow-arrow"><ArrowRightOutlined /></span></span>
-    <span className={`et-flow-edge resource-line ${activeId === "resources" || activeId === "eventmesh" ? "active" : ""}`}><span className="et-edge-head"><ArrowRightOutlined /></span><span className="et-flow-arrow"><ArrowRightOutlined /></span></span>
+    {hasAccess && <span className={`et-flow-edge access-line ${activeId === "access" || activeId === "eventmesh" ? "active" : ""}`}><span className="et-edge-head"><ArrowRightOutlined /></span><span className="et-flow-arrow"><ArrowRightOutlined /></span></span>}
+    {hasResources && <span className={`et-flow-edge resource-line ${activeId === "resources" || activeId === "eventmesh" ? "active" : ""}`}><span className="et-edge-head"><ArrowRightOutlined /></span><span className="et-flow-arrow"><ArrowRightOutlined /></span></span>}
     {!!stores.length && <span className={`et-store-network ${singleStore ? "single" : "branched"}`}>
       {singleStore ? <i className={`et-store-single ${stores[0].tone} ${activeId === "eventmesh" || activeId === stores[0].id ? "active" : ""}`} style={{ left: targets[0] }}><span className="et-store-head"><ArrowDownOutlined /></span></i> : <>
         <i className="et-store-trunk" />
@@ -336,7 +359,7 @@ function GlobalStage({ model, language, query, onOpen }) {
   const [activeId, setActiveId] = useState(null);
   const matches = (component) => !query || `${component.title} ${component.subtitle} ${component.clusterType ?? ""}`.toLowerCase().includes(query.toLowerCase());
   return <div className="et-global-stage">
-    <GlobalFlowEdges stores={model.stores} activeId={activeId} />
+    <GlobalFlowEdges stores={model.stores} activeId={activeId} hasAccess={Boolean(model.access)} hasResources={Boolean(model.resources)} />
     <div className={`et-global-access ${model.access && matches(model.access) ? (query ? "search-hit" : "") : "muted"}`}>
       {model.access ? <ClusterCard component={model.access} language={language} onOpen={onOpen} onHover={setActiveId} /> : <div className="et-optional-empty"><LinkOutlined /><span>{language === "zh" ? "暂无客户端连接" : "No client connections"}</span></div>}
     </div>
@@ -356,7 +379,7 @@ function ComponentStage({ component, language, query, selectedKey, onSelect, onD
   const normalizedQuery = query.trim().toLowerCase();
   const nodeMatches = (node) => !normalizedQuery || `${node.title} ${node.subtitle} ${node.host ?? ""} ${node.port ?? ""}`.toLowerCase().includes(normalizedQuery);
   const matchingCount = component.nodes.filter(nodeMatches).length;
-  return <div className={`et-component-stage ${component.tone}`}>
+  return <div className={`et-component-stage ${component.tone} status-${normalizedStatus(component.status)}`}>
     <section className="et-component-hero">
       <span className="et-card-icon">{iconFor(component.kind)}</span>
       <div><small>{language === "zh" ? "集群组件" : "Cluster component"}</small><h2>{component.title}</h2><p>{component.subtitle}</p></div>
@@ -398,6 +421,7 @@ export function TopologyExperience({ cluster, topology, runtimes = [], topics = 
   const selectedNode = currentComponent?.nodes.find((item) => item.key === nodeKey) ?? null;
   const componentNodes = model.components.flatMap((item) => item.nodes);
   const warningCount = componentNodes.filter((node) => normalizedStatus(node.status ?? node.raw?.status ?? node.raw?.state) === "warning").length;
+  const errorCount = componentNodes.filter((node) => normalizedStatus(node.status ?? node.raw?.status ?? node.raw?.state) === "error").length;
   const allNodes = componentNodes.length;
   const healthyNodes = componentNodes.filter((node) => normalizedStatus(node.status ?? node.raw?.status ?? node.raw?.state) === "healthy").length;
   const updateParams = (changes) => {
@@ -440,7 +464,7 @@ export function TopologyExperience({ cluster, topology, runtimes = [], topics = 
     <header className="et-topbar">
       <div className="et-brand"><span><img src={eventMeshLogo} alt="EventMesh" /></span><div><strong>EventMesh {language === "zh" ? "集群图" : "Cluster Graph"}</strong><small>Cluster topology &amp; observability dashboard</small></div></div>
       <span className="et-environment"><i />{cluster.region && cluster.region !== "—" ? cluster.region : (language === "zh" ? "当前环境" : "Current environment")}</span>
-      <div className="et-kpis"><div><small>{language === "zh" ? "正常节点" : "Healthy nodes"}</small><strong>{healthyNodes} / {allNodes}</strong></div><div><small>{language === "zh" ? "告警节点" : "Warning nodes"}</small><strong className={warningCount ? "warning" : ""}>{warningCount}</strong></div><div><small>Runtime</small><strong>{runtimes.length}</strong></div><div><small>Topics</small><strong>{topics.length}</strong></div></div>
+      <div className="et-kpis"><div><small>{language === "zh" ? "正常节点" : "Healthy nodes"}</small><strong>{healthyNodes} / {allNodes}</strong></div><div><small>{language === "zh" ? "警告 / 异常" : "Warning / abnormal"}</small><strong className={errorCount ? "error" : warningCount ? "warning" : ""}>{warningCount} / {errorCount}</strong></div><div><small>Runtime</small><strong>{runtimes.length}</strong></div><div><small>Topics</small><strong>{topics.length}</strong></div></div>
       <span className="et-updated">{language === "zh" ? "更新于" : "Updated"} {formatTime(fetchedAt, language)}</span>
     </header>
     <div className="et-commandbar">
@@ -457,7 +481,7 @@ export function TopologyExperience({ cluster, topology, runtimes = [], topics = 
     <main className="et-workbench">
       <section className="et-main-panel">
         <header className="et-panel-heading"><div><h1>{currentComponent?.title ?? (language === "zh" ? "全局拓扑" : "Global topology")}</h1><p>{currentComponent ? (language === "zh" ? "查看组件内部集群，选择节点后在右侧检查资源数据" : "Inspect the internal cluster and select a node for resource data") : (language === "zh" ? "先看系统边界：应用如何接入、EventMesh 如何转发、事件最终流向哪里" : "Understand system boundaries, EventMesh routing, and event destinations")}</p></div><div><button type="button" className="et-demo" onClick={playDemo}>{demoRunning ? "■" : "▶"} {language === "zh" ? (demoRunning ? "停止演示" : "演示下钻") : (demoRunning ? "Stop demo" : "Demo drill-down")}</button><button type="button" onClick={goGlobal}>⌂ {language === "zh" ? "回到全局" : "Global"}</button></div></header>
-        <div className="et-legend"><span><b>{language === "zh" ? "状态" : "Status"}</b></span><span><i className="healthy" />{language === "zh" ? "正常" : "Healthy"}</span><span><i className="warning" />{language === "zh" ? "警告" : "Warning"}</span><span><i className="error" />{language === "zh" ? "异常" : "Error"}</span><span><i className="unknown" />{language === "zh" ? "未知" : "Unknown"}</span><em>{language === "zh" ? "点击集群卡片逐层进入；点击节点查看右侧详情" : "Open cluster cards, then select nodes for details"}</em></div>
+        <div className="et-legend"><span><b>{language === "zh" ? "状态" : "Status"}</b></span><StatusLegendItem status="Healthy" language={language} /><StatusLegendItem status="Warning" language={language} /><StatusLegendItem status="Error" language={language} /><StatusLegendItem status="Unknown" language={language} /><em>{language === "zh" ? "点击集群卡片逐层进入；点击节点查看右侧详情" : "Open cluster cards, then select nodes for details"}</em></div>
         {error && <Alert className="et-api-alert" type="warning" showIcon message={language === "zh" ? "部分拓扑关系暂不可用" : "Some topology relationships are unavailable"} description={error} />}
         <div className="et-canvas-scroll">
           {loading ? <div className="et-loading"><Spin size="large" /><span>{language === "zh" ? "正在读取拓扑数据" : "Loading topology data"}</span></div> : currentComponent ? <ComponentStage component={currentComponent} language={language} query={query} selectedKey={selectedNode?.key} onSelect={selectNode} onDrill={openComponent} /> : <GlobalStage model={model} language={language} query={query} onOpen={openComponent} />}
