@@ -57,3 +57,51 @@ test("overview counts only values returned by backend endpoints", async () => {
   assert.equal(result.connections.length, 2);
   assert.equal(result.operations.length, 2);
 });
+
+test("keeps clusters returned by healthy cluster-type endpoints", async () => {
+  const client = mysqlBackedClient();
+  const originalPost = client.post;
+  client.post = async (url, body) => {
+    if (url === resourceEndpoints.clusters && body.clusterType === "STORAGE_KAFKA_CLUSTER") throw new Error("Kafka cluster query unavailable");
+    return originalPost(url, body);
+  };
+  const repository = createResourceRepository(client);
+
+  const clusters = await repository.getClusters();
+
+  assert.deepEqual(clusters.map((cluster) => cluster.name), ["east", "west"]);
+});
+
+test("sorts database health history with the latest check first", async () => {
+  const repository = createResourceRepository({
+    async get(url) {
+      assert.equal(url, resourceEndpoints.healthHistory);
+      return { data: { data: [
+        { id: 1, finishTime: "2026-08-15T09:00:00" },
+        { id: 2, finishTime: "2026-08-15T11:00:00" },
+      ] } };
+    },
+  });
+
+  const checks = await repository.getHealthHistory({ type: 1, instanceId: 11 });
+
+  assert.deepEqual(checks.map((check) => check.id), [2, 1]);
+});
+
+test("uses backend mutations for topic creation and group deletion", async () => {
+  const requests = [];
+  const repository = createResourceRepository({
+    async post(url, body) {
+      requests.push({ url, body });
+      return { data: { code: 200, data: url === resourceEndpoints.createTopic ? 91 : true } };
+    },
+  });
+
+  await repository.createTopic({ clusterId: 11, clusterType: "EVENTMESH_JVM_CLUSTER", name: " orders ", description: " order events ", partitionsNums: 6, replicasNums: 3, saveTime: 72, cleanupStrategy: 0 });
+  await repository.deleteGroup(33);
+
+  assert.equal(requests[0].url, resourceEndpoints.createTopic);
+  assert.equal(requests[0].body.name, "orders");
+  assert.equal(requests[0].body.clusterId, 11);
+  assert.deepEqual(requests[1], { url: resourceEndpoints.deleteGroup, body: { id: 33 } });
+});

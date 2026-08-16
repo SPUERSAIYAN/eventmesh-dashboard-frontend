@@ -4,10 +4,13 @@
 
 ## 已交付范围
 
-- `/login`、`/overview`、`/clusters`、`/clusters/:id`
+- `/login`、`/overview`、`/clusters`、`/clusters/:id/{overview|topology|health|configuration}`
 - `/topics`、`/groups`、`/connections`、`/operations`
+- `/monitoring`
 - `/organization/members`
-- 基础集群创建、真实搜索、集群筛选、分页、刷新、空状态和错误状态
+- EventMesh、RocketMQ、Kafka 与逻辑集群查询；基础集群记录创建、管理方式选择、真实搜索、类型/状态筛选、分页、刷新、空状态和错误状态
+- 集群详情资源概览、健康历史、只读配置与拓扑页签；拓扑支持 `cluster_relationship` 驱动的全局—组件—实例三级下钻、动态方向箭头、整卡进入、节点资源详情、搜索和可分享 URL
+- Topic 查询和创建；消费组查询和删除；客户端连接与操作审计查询
 - 中文/英文切换，优先使用用户保存的语言，其次跟随浏览器语言
 - 系统管理员、组织拥有人、组织管理员、组织成员四种角色
 - JWT 访问令牌、刷新令牌轮换、注销、401 重登和 403 页面
@@ -55,4 +58,4 @@ JAVA_HOME=/path/to/java17 ./mvnw -pl eventmesh-dashboard-console -am package
 docker compose -f docker-compose.yml -f docker-compose.local-build.yml up --build -d
 ```
 
-接口映射见 [docs/api-contracts.md](docs/api-contracts.md)，视觉验收记录见 [design-qa.md](design-qa.md)。
+接口映射见 [docs/api-contracts.md](docs/api-contracts.md)，V2 需求覆盖和暂缓项见 [docs/v2-capability-matrix.md](docs/v2-capability-matrix.md)，视觉验收记录见 [design-qa.md](design-qa.md)。

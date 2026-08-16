@@ -1,0 +1,2212 @@
+:root {
+  --ali-orange: #225aa0;
+  --ali-orange-soft: #edf4fb;
+  --eventmesh-cyan: #4cb6d4;
+  --ali-ink: #203247;
+  --ali-muted: #5f7388;
+  --ali-subtle: #8495a9;
+  --ali-line: #d4e1ef;
+  --ali-line-soft: #e6eef6;
+  --ali-page: #f2f7fc;
+  --ali-panel: #fff;
+  --cluster-blue: var(--ali-orange);
+  --cluster-green: #5f7388;
+  --cluster-purple: #72869b;
+  --cluster-orange: var(--ali-orange);
+  --cluster-text: var(--ali-ink);
+  --cluster-muted: var(--ali-muted);
+  --cluster-line: var(--ali-line);
+  --cluster-shadow: none;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  color: var(--ali-ink);
+  background: var(--ali-page);
+}
+
+body,
+button,
+input,
+textarea,
+select {
+  font-family: Arial, "Helvetica Neue", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+/* EventMesh cloud-mist neutrals replace flat grays without competing with the
+   deep-blue brand action color. */
+.global-brand > button,
+.global-scope,
+.top-actions,
+.side-nav button,
+.collapse-button,
+.workspace-breadcrumb,
+.metadata,
+.primary-meta,
+.statusbar,
+.resource-table td,
+.operational-summary span,
+.operational-summary small,
+.section-title p,
+.health-check-list span,
+.health-check-list strong,
+.plain-status {
+  color: var(--ali-muted);
+}
+
+.resource-table th,
+.permission-table-wrap th,
+.health-summary-strip,
+.et-kpis,
+.et-legend,
+.et-registry-block,
+.et-runtime-block {
+  color: #50657a;
+  background: #f8fbfe;
+}
+
+.metric-icon,
+.cluster-row-icon,
+.cluster-name-icon,
+.primary-cell > .anticon,
+.cluster-health-icon,
+.health-conclusion > span,
+.plain-status .anticon,
+.health-check-list .anticon {
+  color: #5f7388;
+  border-color: #b8c9da;
+}
+
+.statusbar .status-ok i,
+.statusbar .status-error i,
+.health-tag i,
+.status-pill i,
+.et-environment i,
+.et-status i,
+.et-legend i,
+.et-mini-node small i,
+.et-runtime-preview small i {
+  background: #6f8398 !important;
+}
+
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ali-orange) 78%, white);
+  outline-offset: 1px;
+}
+
+.app-shell,
+.app-shell.sidebar-collapsed {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 228px minmax(0, 1fr);
+  grid-template-rows: 60px minmax(0, 1fr) 34px;
+  background: var(--ali-page);
+  transition: grid-template-columns 0.18s ease;
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+
+.topbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-width: 0;
+  height: 60px;
+  padding: 0 16px;
+  display: grid;
+  grid-template-columns: minmax(440px, auto) minmax(260px, 720px) auto;
+  align-items: center;
+  gap: 22px;
+  background: #fff;
+  border-bottom: 1px solid var(--ali-line);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 4%);
+  z-index: 50;
+}
+
+.global-brand,
+.global-brand > button,
+.top-actions,
+.global-scope {
+  display: flex;
+  align-items: center;
+}
+
+.global-brand {
+  min-width: 0;
+  gap: 6px;
+}
+
+.global-brand > button {
+  height: 38px;
+  gap: 8px;
+  padding: 0 12px;
+  color: #262626;
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--ali-line-soft);
+  border-radius: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.global-brand > button:hover {
+  color: var(--ali-orange);
+  background: #fafafa;
+}
+
+.global-brand > button:first-child {
+  padding-left: 0;
+}
+
+.global-brand > button:first-child img {
+  width: 88px;
+  height: 48px;
+  object-fit: contain;
+  object-position: center;
+  filter: none;
+}
+
+.global-brand > button:first-child strong {
+  color: #1f1f1f;
+  font-size: 18px;
+  letter-spacing: -0.2px;
+}
+
+.global-brand .anticon {
+  font-size: 16px;
+}
+
+.resource-link .anticon:last-child {
+  margin-left: 2px;
+  color: #8c8c8c;
+  font-size: 10px;
+}
+
+.global-search {
+  min-width: 0;
+}
+
+.global-search .ant-input-affix-wrapper {
+  height: 38px;
+  border-color: #cfcfcf;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.global-search .ant-input-prefix {
+  margin-right: 10px;
+  color: var(--ali-orange);
+}
+
+.top-actions {
+  justify-self: end;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.global-scope {
+  height: 36px;
+  gap: 7px;
+  padding: 0 8px;
+  color: #4d4d4d;
+  font-size: 13px;
+}
+
+.environment-select {
+  width: 168px;
+  height: 38px;
+  margin: 0;
+}
+
+.environment-select .ant-select-selector,
+.environment-select .ant-select-selection-wrap {
+  height: 38px !important;
+}
+
+.environment-select .ant-select-selection-item {
+  line-height: 36px !important;
+}
+
+.environment-select small {
+  display: none;
+}
+
+.environment-select b {
+  color: #262626;
+  font-weight: 500;
+}
+
+.language-toggle,
+.notification-button {
+  border-color: transparent !important;
+  color: #404040 !important;
+  box-shadow: none !important;
+}
+
+.notification-button {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+  font-size: 17px;
+}
+
+.role-switcher {
+  height: 38px;
+  border: 0;
+  border-left: 1px solid var(--ali-line-soft);
+  border-radius: 0;
+  background: #fff;
+}
+
+.role-switcher:hover {
+  border-color: var(--ali-line-soft);
+  background: #fafafa;
+}
+
+.avatar,
+.member-avatar {
+  color: #525252;
+  background: #eee;
+}
+
+.sidebar {
+  grid-column: 1;
+  grid-row: 2 / 4;
+  position: sticky;
+  top: 60px;
+  width: auto;
+  height: calc(100vh - 60px);
+  overflow: hidden auto;
+  background: #fff;
+  border-right: 1px solid var(--ali-line);
+  z-index: 20;
+}
+
+.sidebar > .brand {
+  display: none;
+}
+
+.side-nav {
+  padding: 14px 0 72px;
+  display: block;
+}
+
+.nav-section {
+  padding: 11px 0 13px;
+  border-bottom: 1px solid var(--ali-line-soft);
+}
+
+.nav-section:first-child {
+  padding-top: 4px;
+}
+
+.nav-section-label {
+  display: block;
+  padding: 0 20px 8px;
+  color: #3d3d3d;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.side-nav button {
+  position: relative;
+  width: 100%;
+  height: 40px;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0 20px;
+  color: #4d4d4d;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: 13px;
+}
+
+.side-nav button::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: transparent;
+  content: "";
+}
+
+.side-nav button .anticon {
+  min-width: 17px;
+  color: #666;
+  font-size: 17px;
+}
+
+.side-nav button:hover {
+  color: var(--ali-orange);
+  background: #fafafa;
+}
+
+.side-nav button.active {
+  color: var(--ali-orange);
+  background: var(--ali-orange-soft);
+  font-weight: 600;
+}
+
+.side-nav button.active::before {
+  background: var(--ali-orange);
+}
+
+.side-nav button.active .anticon {
+  color: var(--ali-orange);
+}
+
+.collapse-button {
+  position: absolute;
+  inset: auto 14px 14px;
+  width: calc(100% - 28px);
+  height: 38px;
+  margin: 0;
+  padding: 0 8px;
+  color: #666;
+  background: #fff;
+  border: 0;
+  border-top: 1px solid var(--ali-line-soft);
+  border-radius: 0;
+}
+
+.sidebar-collapsed .nav-section-label,
+.sidebar-collapsed .side-nav button span:not(.anticon),
+.sidebar-collapsed .collapse-button span:not(.anticon) {
+  display: none;
+}
+
+.sidebar-collapsed .side-nav button {
+  justify-content: center;
+  padding: 0;
+}
+
+.workspace {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  padding: 14px 20px 24px;
+  overflow: auto;
+  background: var(--ali-page);
+}
+
+.workspace-breadcrumb {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.workspace-breadcrumb button {
+  padding: 0;
+  color: #595959;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.workspace-breadcrumb strong {
+  color: #262626;
+  font-weight: 600;
+}
+
+.statusbar {
+  grid-column: 2;
+  grid-row: 3;
+  height: 34px;
+  padding: 0 20px;
+  color: #6b6b6b;
+  background: #fff;
+  border-top: 1px solid var(--ali-line);
+  font-size: 11px;
+}
+
+.statusbar .status-ok,
+.statusbar .status-error {
+  color: #595959;
+}
+
+.statusbar .status-ok i,
+.statusbar .status-error i {
+  background: #777;
+}
+
+.page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.page h1 {
+  color: #1f1f1f;
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+}
+
+.page h2 {
+  color: #262626;
+}
+
+.panel,
+.reference-cluster-page .cluster-list-panel,
+.reference-cluster-page .metric-card,
+.reference-cluster-heading {
+  border-color: var(--ali-line);
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.resource-heading,
+.reference-cluster-heading {
+  min-height: auto;
+  margin: 0 0 16px;
+  padding: 4px 0 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.resource-heading h1,
+.reference-cluster-heading h1,
+.dashboard-overview-page .resource-heading h1 {
+  font-size: 24px;
+  line-height: 1.35;
+}
+
+.resource-heading p,
+.reference-cluster-heading p,
+.dashboard-overview-page .resource-heading p {
+  margin-top: 5px;
+  color: #737373;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.ant-btn,
+.ant-input-affix-wrapper,
+.ant-input,
+.ant-select-selector,
+.ant-modal-content,
+.ant-alert {
+  border-radius: 2px !important;
+}
+
+.ant-btn-primary {
+  background: var(--ali-orange);
+  border-color: var(--ali-orange);
+  box-shadow: none;
+}
+
+.ant-btn-primary:hover {
+  background: #1b4f8a !important;
+  border-color: #1b4f8a !important;
+}
+
+.ant-btn-link,
+.text-link,
+.resource-card-title button,
+.card-title button,
+.cluster-console-topology,
+.topology-summary,
+.back-to-list {
+  color: var(--ali-orange) !important;
+}
+
+.ant-input-affix-wrapper-focused,
+.ant-input-affix-wrapper:focus-within,
+.ant-select-focused .ant-select-selector,
+.ant-btn:focus-visible {
+  border-color: var(--ali-orange) !important;
+  box-shadow: 0 0 0 2px rgb(255 106 0 / 10%) !important;
+}
+
+.overview-metrics,
+.resource-metrics,
+.reference-cluster-page .overview-metrics {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 1fr 1fr;
+  gap: 0;
+  margin: 0 0 16px;
+  background: #fff;
+  border: 1px solid var(--ali-line);
+}
+
+.metric-card,
+.reference-cluster-page .metric-card {
+  min-height: 82px;
+  padding: 14px 18px;
+  gap: 12px;
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--ali-line-soft);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.metric-card:last-child {
+  border-right: 0;
+}
+
+.metric-icon,
+.metric-icon.green {
+  width: 34px;
+  height: 34px;
+  color: #595959;
+  background: #f3f3f3;
+  border: 1px solid #e5e5e5;
+  border-radius: 2px;
+  font-size: 16px;
+}
+
+.metric-card span,
+.dashboard-overview-page .metric-card span {
+  color: #666;
+  font-size: 12px;
+}
+
+.metric-card strong,
+.dashboard-overview-page .metric-card strong {
+  color: #1f1f1f;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.metric-card small,
+.dashboard-overview-page .metric-card small {
+  color: #8c8c8c;
+  font-size: 11px;
+}
+
+.operational-summary {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.45fr) repeat(3, minmax(150px, 0.75fr));
+  margin: 0 0 14px;
+  background: #fff;
+  border: 1px solid var(--ali-line);
+}
+
+.operational-summary > div {
+  min-height: 72px;
+  padding: 11px 18px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-content: center;
+  align-items: baseline;
+  gap: 4px 12px;
+  border-right: 1px solid var(--ali-line-soft);
+}
+
+.operational-summary > div:last-child {
+  border-right: 0;
+}
+
+.operational-summary span {
+  color: #666;
+  font-size: 12px;
+}
+
+.operational-summary strong {
+  color: #1f1f1f;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.operational-summary small {
+  grid-column: 1 / -1;
+  color: #8c8c8c;
+  font-size: 10px;
+}
+
+.operational-summary.compact {
+  grid-template-columns: minmax(220px, 1.45fr) repeat(3, minmax(140px, 0.75fr));
+  margin-bottom: 8px;
+}
+
+.operational-summary.compact > div {
+  min-height: 56px;
+  padding: 8px 14px;
+}
+
+.operational-summary.compact strong {
+  font-size: 20px;
+}
+
+.panel-toolbar,
+.reference-cluster-page .panel-toolbar {
+  min-height: 66px;
+  padding: 14px 16px;
+  background: #fff;
+  border-bottom: 1px solid var(--ali-line-soft);
+}
+
+.panel-toolbar h2,
+.reference-cluster-page .panel-toolbar h2 {
+  font-size: 16px;
+}
+
+.filters {
+  gap: 8px;
+}
+
+.filters .ant-input-affix-wrapper,
+.filters .ant-select-selector,
+.topology-toolbar .ant-input-affix-wrapper,
+.topology-toolbar .ant-select-selector {
+  border-radius: 2px !important;
+}
+
+.resource-table-wrap,
+.cluster-table-wrap {
+  width: 100%;
+  overflow: auto;
+}
+
+.resource-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #333;
+  font-size: 12px;
+}
+
+.resource-table th {
+  height: 42px;
+  padding: 0 14px;
+  color: #595959;
+  background: #fafafa;
+  border-bottom: 1px solid var(--ali-line);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.resource-table td {
+  height: 48px;
+  padding: 8px 14px;
+  color: #404040;
+  border-bottom: 1px solid var(--ali-line-soft);
+}
+
+.resource-table tbody tr {
+  transition: background 0.12s ease;
+}
+
+.resource-table tbody tr:hover,
+.resource-table tbody tr:focus-visible {
+  background: #f3f7fb;
+}
+
+.cluster-table {
+  min-width: 1160px;
+}
+
+.cluster-table tbody tr {
+  cursor: pointer;
+}
+
+.cluster-row-icon,
+.cluster-name-icon,
+.primary-cell > .anticon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: #595959;
+  background: #f5f5f5;
+  border: 1px solid #e5e5e5;
+  border-radius: 2px;
+}
+
+.primary-cell strong {
+  color: #262626;
+  font-size: 12px;
+}
+
+.primary-cell small {
+  color: #8c8c8c;
+  font-size: 10px;
+}
+
+.health-tag,
+.cluster-type-badge,
+.status-pill,
+.data-source-tag,
+.topology-relation-chip {
+  min-height: 24px;
+  margin: 0;
+  padding: 2px 8px;
+  color: #4d4d4d !important;
+  background: #f7f7f7 !important;
+  border: 1px solid #dcdcdc !important;
+  border-radius: 2px !important;
+  font-size: 11px;
+}
+
+.health-tag i,
+.status-pill i {
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  background: #777 !important;
+  border-radius: 50%;
+}
+
+.health-tag.warning,
+.status-pill.negative,
+.status-pill.pending,
+.data-source-tag.mixed {
+  color: #194a7e !important;
+  background: #edf4fb !important;
+  border-color: #a7c3e0 !important;
+}
+
+.health-tag.warning i,
+.status-pill.negative i,
+.status-pill.pending i {
+  background: var(--ali-orange) !important;
+}
+
+.cluster-type-badge .anticon,
+.data-source-tag .anticon {
+  color: #666 !important;
+}
+
+.table-pagination {
+  padding: 12px 16px;
+  background: #fff;
+  border-top: 0;
+}
+
+.overview-resource-grid {
+  gap: 16px;
+}
+
+.overview-clusters,
+.overview-operations,
+.resource-list-panel {
+  overflow: hidden;
+}
+
+.resource-card-title,
+.card-title,
+.section-title {
+  min-height: 58px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--ali-line-soft);
+}
+
+.resource-card-title h2,
+.card-title h2,
+.section-title h2,
+.dashboard-overview-page .resource-card-title h2 {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.resource-card-title span,
+.section-title p {
+  display: block;
+  margin-top: 3px;
+  color: #8c8c8c;
+  font-size: 11px;
+}
+
+.inventory-list > button,
+.operation-preview > div {
+  min-height: 56px;
+  border-radius: 0;
+}
+
+.inventory-list > button:hover {
+  background: #f3f7fb;
+}
+
+.reference-cluster-detail .cluster-hero,
+.cluster-hero {
+  min-height: 166px;
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid var(--ali-line);
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+.cluster-identity {
+  padding-right: 560px;
+}
+
+.cluster-identity h1 {
+  margin: 0 0 15px;
+  font-size: 26px;
+}
+
+.metadata,
+.primary-meta {
+  gap: 18px;
+  margin-bottom: 12px;
+  color: #666;
+  font-size: 12px;
+}
+
+.cluster-actions {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  gap: 8px;
+}
+
+.cluster-actions .ant-btn,
+.cluster-actions .ant-btn-primary {
+  min-width: 108px;
+}
+
+.cluster-health-summary {
+  position: absolute;
+  top: 72px;
+  right: 20px;
+  width: 330px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  color: #4d4d4d;
+}
+
+.cluster-health-icon {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: #555;
+  border: 2px solid #555;
+  border-radius: 50%;
+  font-size: 22px;
+}
+
+.cluster-health-summary.warning .cluster-health-icon {
+  color: var(--ali-orange);
+  border-color: var(--ali-orange);
+}
+
+.cluster-health-summary > div {
+  display: grid;
+  gap: 4px;
+}
+
+.cluster-health-summary strong {
+  color: #262626;
+  font-size: 13px;
+}
+
+.cluster-health-summary span,
+.cluster-health-summary small {
+  color: #777;
+  font-size: 11px;
+}
+
+.cluster-detail-tabs {
+  margin-top: 0;
+}
+
+.cluster-detail-tabs > .ant-tabs-nav {
+  margin: 0;
+  padding: 0 8px;
+  background: #fff;
+  border-right: 1px solid var(--ali-line);
+  border-bottom: 1px solid var(--ali-line);
+  border-left: 1px solid var(--ali-line);
+}
+
+.cluster-detail-tabs .ant-tabs-tab {
+  padding: 14px 8px;
+  font-size: 13px;
+}
+
+.cluster-detail-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--ali-orange) !important;
+}
+
+.cluster-detail-tabs .ant-tabs-ink-bar {
+  background: var(--ali-orange);
+}
+
+.cluster-detail-tabs .ant-tabs-content-holder {
+  padding-top: 14px;
+}
+
+.cluster-resource-snapshot {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin-bottom: 14px;
+  background: #fff;
+  border: 1px solid var(--ali-line);
+}
+
+.cluster-resource-snapshot > div {
+  min-height: 66px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  border-right: 1px solid var(--ali-line-soft);
+}
+
+.cluster-resource-snapshot > div:last-child {
+  border-right: 0;
+}
+
+.cluster-resource-snapshot span {
+  color: #777;
+  font-size: 11px;
+}
+
+.cluster-resource-snapshot strong {
+  color: #1f1f1f;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.cluster-resource-snapshot small {
+  display: none;
+}
+
+.cluster-workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.72fr) minmax(620px, 1.6fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.cluster-health-overview,
+.runtime-panel,
+.changes-panel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.changes-panel {
+  grid-column: 1 / -1;
+}
+
+.health-conclusion {
+  min-height: 88px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--ali-line-soft);
+}
+
+.health-conclusion > span {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  color: #555;
+  border: 2px solid #555;
+  border-radius: 50%;
+  font-size: 22px;
+}
+
+.health-conclusion > div {
+  display: grid;
+  gap: 5px;
+}
+
+.health-conclusion strong {
+  color: #262626;
+  font-size: 14px;
+}
+
+.health-conclusion small {
+  color: #8c8c8c;
+  font-size: 10px;
+}
+
+.health-check-list > div {
+  min-height: 42px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--ali-line-soft);
+  font-size: 11px;
+}
+
+.health-check-list > div:last-child {
+  border-bottom: 0;
+}
+
+.health-check-list span,
+.plain-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #555;
+}
+
+.health-check-list strong {
+  color: #595959;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.health-check-list .anticon,
+.plain-status .anticon {
+  color: #666;
+}
+
+.plain-status.attention,
+.plain-status.attention .anticon {
+  color: #194a7e;
+}
+
+.runtime-panel .section-title .ant-btn,
+.changes-panel .section-title .ant-btn {
+  color: var(--ali-orange);
+}
+
+.runtime-table,
+.recent-changes-table {
+  min-width: 720px;
+}
+
+.runtime-table td,
+.recent-changes-table td {
+  height: 44px;
+}
+
+.runtime-table td:last-child,
+.recent-changes-table td:last-child {
+  white-space: nowrap;
+}
+
+.runtime-table td .ant-btn + .ant-btn {
+  margin-left: 2px;
+}
+
+.recent-changes-table td:nth-child(1) {
+  width: 160px;
+  color: #777;
+}
+
+.recent-changes-table td:nth-child(3) {
+  color: #666;
+}
+
+.operational-panel {
+  min-height: 0;
+  border-radius: 2px;
+}
+
+.operational-heading {
+  min-height: 72px;
+  padding: 14px 16px;
+}
+
+.health-summary-strip {
+  grid-template-columns: 1.2fr 1fr 1fr 1.7fr;
+}
+
+.health-summary-strip > div {
+  min-height: 72px;
+  padding: 14px 16px;
+}
+
+.health-summary-strip strong,
+.health-summary-strip .success strong,
+.health-summary-strip .failed strong {
+  color: #262626;
+  font-size: 20px;
+}
+
+.empty-state {
+  color: #777;
+}
+
+.empty-state > .anticon {
+  color: #666;
+}
+
+.empty-state.compact {
+  min-height: 140px;
+}
+
+.login-page {
+  color: var(--ali-ink);
+  background: #f5f5f5;
+}
+
+.login-header {
+  height: 60px;
+  padding: 0 24px;
+  background: #fff;
+  border-bottom: 1px solid var(--ali-line);
+}
+
+.login-header img {
+  width: 150px;
+  filter: none;
+}
+
+.login-main {
+  min-height: calc(100vh - 60px);
+  grid-template-columns: minmax(0, 1fr) 390px;
+  gap: 56px;
+  max-width: 980px;
+  padding: 48px 28px;
+}
+
+.login-intro {
+  gap: 15px;
+}
+
+.login-intro .ant-tag {
+  color: #194a7e !important;
+  background: #edf4fb !important;
+  border-color: #a7c3e0 !important;
+  border-radius: 2px;
+}
+
+.login-intro h1 {
+  max-width: 540px;
+  font-size: 32px;
+  line-height: 1.3;
+  letter-spacing: -0.5px;
+}
+
+.login-intro > p {
+  color: #666;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.login-points .anticon {
+  color: #666;
+}
+
+.login-card {
+  padding: 28px;
+  border-radius: 2px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 8%);
+}
+
+.login-card-icon,
+.access-denied-icon,
+.metric-unavailable > .anticon {
+  color: var(--ali-orange);
+  background: var(--ali-orange-soft);
+  border-radius: 2px;
+}
+
+.permission-policy > p,
+.manage-copy-note,
+.create-basic-banner,
+.topology-alert,
+.et-data-note {
+  color: #595959 !important;
+  background: #fafafa !important;
+  border-color: var(--ali-line) !important;
+  border-radius: 2px !important;
+}
+
+.create-methods > button,
+.manage-links .ant-btn {
+  border-radius: 2px;
+}
+
+.create-methods > button.active {
+  color: var(--ali-orange);
+  background: var(--ali-orange-soft);
+  border-color: var(--ali-orange);
+}
+
+.permission-table-wrap td .anticon-check,
+.manage-links .anticon {
+  color: #595959;
+}
+
+/* Topology stays functional while using the same neutral/EventMesh-blue console language. */
+.topology-experience {
+  --et-blue: var(--ali-orange);
+  --et-blue-soft: var(--ali-orange-soft);
+  --et-green: #666;
+  --et-orange: var(--ali-orange);
+  --et-purple: #777;
+  --et-cyan: #777;
+  --et-border: var(--ali-line);
+  --et-ink: var(--ali-ink);
+  --et-muted: var(--ali-muted);
+  border-color: var(--ali-line);
+  border-radius: 2px;
+  background: #f5f5f5;
+}
+
+.et-topbar,
+.et-commandbar,
+.et-main-panel,
+.et-inspector,
+.et-cluster-card,
+.et-eventmesh-card,
+.et-component-hero,
+.et-instance-section,
+.et-mini-node,
+.et-card-preview,
+.et-runtime-preview > div,
+.topology-panel,
+.topology-inspector,
+.topology-node,
+.cluster-console-card,
+.reference-topology-shell {
+  background: #fff !important;
+  border-color: var(--ali-line) !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+}
+
+.et-brand > span,
+.et-environment,
+.et-status,
+.et-store-caption,
+.et-related-components > button,
+.topology-node-icon,
+.topology-node-state,
+.topology-legend span,
+.topology-relation-chip {
+  color: #595959 !important;
+  background: #f7f7f7 !important;
+  border-color: #d9d9d9 !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+}
+
+.et-environment i,
+.et-status i,
+.et-status.healthy i,
+.et-status.warning i,
+.et-status.unknown i,
+.et-legend i,
+.et-legend i.healthy,
+.et-legend i.warning,
+.et-legend i.error,
+.et-legend i.unknown,
+.et-mini-node small i,
+.et-runtime-preview small i,
+.et-registry-chips button i,
+.et-store-caption i {
+  background: #777 !important;
+  box-shadow: none !important;
+}
+
+.et-kpis {
+  gap: 0;
+}
+
+.et-kpis > div {
+  min-width: 104px;
+  height: 48px;
+  padding: 4px 14px;
+  border: 0;
+  border-left: 1px solid var(--ali-line-soft);
+  border-radius: 0;
+  background: transparent;
+}
+
+.et-kpis strong.warning {
+  color: #4d4d4d;
+}
+
+.et-card-icon,
+.et-component-hero .et-card-icon {
+  color: #595959;
+  background: #fafafa;
+  border-color: #bfbfbf;
+  border-radius: 2px;
+}
+
+.et-eventmesh-card .et-card-icon,
+.et-component-stage.eventmesh .et-card-icon {
+  color: var(--ali-orange);
+  background: var(--ali-orange-soft);
+  border-color: #a7c3e0;
+}
+
+.et-registry-block,
+.et-runtime-block {
+  background: #fafafa;
+  border-color: var(--ali-line);
+  border-radius: 2px;
+}
+
+.et-registry-block > div:first-child strong,
+.et-runtime-block > div:first-child strong {
+  color: #404040;
+}
+
+.et-registry-chips button,
+.et-registry-empty {
+  border-color: var(--ali-line);
+  border-radius: 2px;
+}
+
+.et-inspector-empty > span {
+  color: var(--ali-orange);
+  background: var(--ali-orange-soft);
+  border-radius: 2px;
+}
+
+.et-brand > span img {
+  filter: none;
+}
+
+.et-panel-heading button.et-demo,
+.et-steps li.active i,
+.et-breadcrumb button.active,
+.et-drill-hint,
+.topology-stats strong,
+.topology-child-list b {
+  color: var(--ali-orange) !important;
+  background: var(--ali-orange-soft) !important;
+  border-color: #a7c3e0 !important;
+}
+
+.et-cluster-card.green,
+.et-cluster-card.orange,
+.et-cluster-card.purple,
+.et-cluster-card.blue,
+.et-cluster-card.indigo,
+.et-cluster-card.cyan,
+.et-eventmesh-card,
+.et-component-stage.green,
+.et-component-stage.orange,
+.et-component-stage.purple,
+.et-component-stage.indigo,
+.et-component-stage.cyan {
+  --card-color: #666;
+  --component-color: #666;
+  border-top-color: #777 !important;
+}
+
+.et-eventmesh-card,
+.et-component-stage.eventmesh {
+  --card-color: var(--ali-orange);
+  --component-color: var(--ali-orange);
+  border-top-color: var(--ali-orange) !important;
+}
+
+.et-status.healthy,
+.et-status.warning,
+.et-status.unknown,
+.et-runtime-preview small i.healthy,
+.et-runtime-preview small i.warning,
+.et-legend i.healthy,
+.et-legend i.warning,
+.et-legend i.error,
+.et-legend i.unknown,
+.et-registry-chips button i,
+.et-store-caption i {
+  color: #595959 !important;
+  background: #777 !important;
+  box-shadow: none !important;
+}
+
+.et-status.warning,
+.et-kpis strong.warning {
+  color: #194a7e !important;
+}
+
+.et-flow-edge,
+.et-stage-connectors .access-line,
+.et-stage-connectors .resource-line,
+.et-store-network,
+.et-store-single,
+.et-store-drop,
+.et-store-trunk,
+.et-store-branch {
+  color: #777 !important;
+  border-color: #777 !important;
+}
+
+.et-stage-connectors .active,
+.et-store-single.active,
+.et-store-drop.active {
+  color: var(--ali-orange) !important;
+  border-color: var(--ali-orange) !important;
+}
+
+.et-instance-glyph,
+.et-instance-glyph.green,
+.et-instance-glyph.orange,
+.et-instance-glyph.purple,
+.et-instance-glyph.indigo,
+.et-instance-glyph.cyan {
+  --glyph-color: #777;
+}
+
+.et-canvas-scroll,
+.cluster-card-grid,
+.topology-tree-wrap {
+  background-color: #fafafa !important;
+  background-image: none !important;
+}
+
+.topology-experience-page {
+  margin: 0;
+}
+
+@media (max-width: 1180px) {
+  .app-shell,
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .nav-section-label,
+  .side-nav button span:not(.anticon),
+  .collapse-button span:not(.anticon) {
+    display: none;
+  }
+
+  .side-nav button {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .topbar {
+    grid-template-columns: auto minmax(220px, 1fr) auto;
+    gap: 12px;
+  }
+
+  .global-brand .workbench-link,
+  .global-brand .resource-link,
+  .global-scope,
+  .role-copy {
+    display: none;
+  }
+
+  .cluster-identity {
+    padding-right: 390px;
+  }
+
+  .cluster-health-summary {
+    width: 260px;
+  }
+
+  .cluster-workbench-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .operational-summary,
+  .operational-summary.compact {
+    grid-template-columns: 1.35fr 1fr;
+  }
+
+  .operational-summary > div:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .operational-summary > div:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--ali-line-soft);
+  }
+
+  .changes-panel {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell,
+  .app-shell.sidebar-collapsed {
+    display: block;
+    padding: 60px 0 60px;
+  }
+
+  .topbar {
+    position: fixed;
+    inset: 0 0 auto;
+    height: 60px;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 12px;
+  }
+
+  .global-brand > button:first-child {
+    border-right: 0;
+  }
+
+  .global-brand > button:first-child strong {
+    font-size: 16px;
+  }
+
+  .global-search,
+  .environment-select,
+  .global-scope,
+  .notification-button,
+  .global-brand .workbench-link,
+  .global-brand .resource-link {
+    display: none;
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: auto 0 0;
+    width: 100%;
+    height: 60px;
+    overflow-x: auto;
+    background: #fff;
+    border-top: 1px solid var(--ali-line);
+    border-right: 0;
+  }
+
+  .side-nav {
+    height: 60px;
+    padding: 0 6px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .nav-section {
+    display: contents;
+  }
+
+  .side-nav button {
+    width: 48px;
+    height: 48px;
+  }
+
+  .side-nav button::before {
+    inset: auto 6px 0;
+    width: auto;
+    height: 2px;
+  }
+
+  .collapse-button {
+    display: none;
+  }
+
+  .workspace {
+    padding: 12px 12px 24px;
+  }
+
+  .workspace-breadcrumb {
+    margin-bottom: 4px;
+  }
+
+  .statusbar {
+    position: fixed;
+    inset: auto 0 60px;
+    height: 30px;
+    padding: 0 12px;
+  }
+
+  .overview-metrics,
+  .resource-metrics,
+  .reference-cluster-page .overview-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .operational-summary,
+  .operational-summary.compact {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .metric-card:nth-child(2) {
+    border-right: 0;
+  }
+
+  .metric-card:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--ali-line-soft);
+  }
+
+  .reference-cluster-detail .cluster-hero,
+  .cluster-hero {
+    min-height: 0;
+    padding: 16px;
+  }
+
+  .cluster-identity {
+    padding-right: 0;
+  }
+
+  .cluster-actions {
+    position: static;
+    margin: 14px 0;
+    flex-wrap: wrap;
+  }
+
+  .cluster-actions .ant-btn,
+  .cluster-actions .ant-btn-primary {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .cluster-health-summary {
+    position: static;
+    width: auto;
+    padding-top: 14px;
+    border-top: 1px solid var(--ali-line-soft);
+  }
+
+  .cluster-resource-snapshot {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cluster-resource-snapshot > div:nth-child(2) {
+    border-right: 0;
+  }
+
+  .cluster-resource-snapshot > div:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--ali-line-soft);
+  }
+
+  .cluster-workbench-grid,
+  .overview-resource-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .resource-heading,
+  .reference-cluster-heading {
+    display: block;
+  }
+
+  .resource-heading .heading-actions,
+  .reference-cluster-heading .permission-button-wrap {
+    margin-top: 12px;
+  }
+
+  .panel-toolbar {
+    display: block;
+  }
+
+  .filters {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .login-main {
+    display: block;
+    padding: 24px 16px;
+  }
+
+  .login-intro {
+    display: none;
+  }
+}
+
+/* The operational console is intentionally viewport-bound on desktop. The
+   workspace scrolls inside the shell so the top navigation, sidebar and
+   connection status remain available while an operator reviews long tables. */
+@media (min-width: 761px) {
+  .app-shell,
+  .app-shell.sidebar-collapsed {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .workspace {
+    height: auto;
+    padding-top: 10px;
+    padding-bottom: 12px;
+  }
+
+  .workspace-breadcrumb {
+    height: 24px;
+    margin-bottom: 4px;
+  }
+
+  .reference-cluster-detail .cluster-hero,
+  .cluster-hero {
+    min-height: 132px;
+    margin-bottom: 0;
+    padding: 14px 18px;
+  }
+
+  .cluster-identity h1 {
+    margin-bottom: 10px;
+    font-size: 24px;
+  }
+
+  .metadata,
+  .primary-meta {
+    gap: 14px;
+    margin-bottom: 8px;
+  }
+
+  .cluster-actions {
+    top: 14px;
+    right: 18px;
+  }
+
+  .cluster-health-summary {
+    top: 60px;
+    right: 18px;
+  }
+
+  .reference-cluster-detail .cluster-detail-tabs > .ant-tabs-nav,
+  .cluster-detail-tabs > .ant-tabs-nav {
+    min-height: 48px;
+    margin: 0;
+    padding: 0 10px;
+    border: 1px solid var(--ali-line);
+    border-top: 0;
+    border-radius: 0;
+    background: #fff;
+    box-shadow: none;
+  }
+
+  .reference-cluster-detail .cluster-detail-tabs .ant-tabs-tab,
+  .cluster-detail-tabs .ant-tabs-tab {
+    padding: 12px 8px;
+  }
+
+  .cluster-detail-tabs .ant-tabs-content-holder {
+    padding-top: 8px;
+  }
+
+  .reference-cluster-detail .cluster-resource-snapshot,
+  .cluster-resource-snapshot {
+    min-height: 56px;
+    margin-bottom: 8px;
+    border-radius: 2px;
+    box-shadow: none;
+  }
+
+  .cluster-resource-snapshot > div {
+    min-height: 56px;
+    padding: 8px 14px;
+  }
+
+  .cluster-resource-snapshot strong {
+    font-size: 20px;
+  }
+
+  .cluster-workbench-grid {
+    gap: 8px;
+  }
+
+  .reference-cluster-detail .operational-panel,
+  .reference-cluster-detail .cluster-workbench-grid > .panel,
+  .operational-panel,
+  .cluster-workbench-grid > .panel {
+    border-radius: 2px;
+    box-shadow: none;
+  }
+
+  .section-title {
+    min-height: 48px;
+    height: 48px;
+    padding: 7px 14px;
+  }
+
+  .section-title p {
+    margin-top: 1px;
+  }
+
+  .health-conclusion {
+    min-height: 64px;
+    padding: 8px 14px;
+    gap: 11px;
+  }
+
+  .health-conclusion > span {
+    width: 38px;
+    height: 38px;
+    font-size: 18px;
+  }
+
+  .health-check-list > div {
+    min-height: 39px;
+    padding: 0 14px;
+  }
+
+  .runtime-panel .resource-table th,
+  .recent-changes-table th {
+    height: 32px;
+    padding: 0 12px;
+  }
+
+  .runtime-panel .resource-table td,
+  .recent-changes-table td {
+    height: 32px;
+    padding: 5px 12px;
+  }
+}
+
+/* Final palette binding: keep text and structural neutrals visibly blue-toned
+   even when older component styles declare literal gray values. */
+body,
+.page h1,
+.page h2,
+.global-brand > button:first-child strong,
+.cluster-health-summary strong,
+.health-conclusion strong,
+.resource-table td strong,
+.operational-summary strong,
+.section-title h2,
+.resource-card-title h2,
+.card-title h2 {
+  color: var(--ali-ink);
+}
+
+.metadata,
+.primary-meta,
+.workspace-breadcrumb,
+.section-title p,
+.resource-card-title span,
+.operational-summary span,
+.operational-summary small,
+.cluster-health-summary span,
+.cluster-health-summary small,
+.health-conclusion small,
+.health-check-list span,
+.health-check-list strong,
+.resource-table td,
+.statusbar,
+.side-nav button,
+.collapse-button,
+.global-scope {
+  color: var(--ali-muted);
+}
+
+.resource-table th,
+.permission-table-wrap th,
+.table-pagination,
+.topology-legend,
+.et-kpis,
+.et-legend,
+.et-registry-block,
+.et-runtime-block {
+  color: #50657a;
+  background: #f8fbfe;
+}
+
+.metric-icon,
+.cluster-row-icon,
+.cluster-name-icon,
+.primary-cell > .anticon,
+.cluster-health-icon,
+.health-conclusion > span,
+.plain-status .anticon,
+.health-check-list .anticon,
+.topology-node-icon {
+  color: #5f7388;
+  background: #f3f7fb;
+  border-color: #b8c9da;
+}
+
+.statusbar .status-ok i,
+.statusbar .status-error i,
+.health-tag i,
+.status-pill i,
+.et-environment i,
+.et-status i,
+.et-legend i,
+.et-mini-node small i,
+.et-runtime-preview small i,
+.et-registry-chips button i,
+.et-store-caption i {
+  background: #6f8398 !important;
+  box-shadow: none !important;
+}
+
+/* Operational semantic states: quiet enough for a dense console, distinct
+   enough to scan without relying on color alone. */
+.topology-experience {
+  --status-normal: #2c7568;
+  --status-normal-bg: #edf7f4;
+  --status-normal-border: #a9cec6;
+  --status-warning: #9a5b00;
+  --status-warning-bg: #fff6e7;
+  --status-warning-border: #e3bf80;
+  --status-error: #a9433c;
+  --status-error-bg: #fff0ee;
+  --status-error-border: #dfa6a1;
+  --status-unknown: #64768a;
+  --status-unknown-bg: #f1f5f8;
+  --status-unknown-border: #bdcad6;
+}
+
+.topology-experience .et-status {
+  min-width: 58px;
+  height: 28px;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 1px solid currentColor !important;
+  border-left-width: 3px !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.topology-experience .et-status.healthy {
+  color: var(--status-normal) !important;
+  background: var(--status-normal-bg) !important;
+  border-color: var(--status-normal-border) !important;
+  border-left-color: var(--status-normal) !important;
+}
+
+.topology-experience .et-status.warning {
+  color: var(--status-warning) !important;
+  background: var(--status-warning-bg) !important;
+  border-color: var(--status-warning-border) !important;
+  border-left-color: var(--status-warning) !important;
+}
+
+.topology-experience .et-status.error {
+  color: var(--status-error) !important;
+  background: var(--status-error-bg) !important;
+  border-color: var(--status-error-border) !important;
+  border-left-color: var(--status-error) !important;
+}
+
+.topology-experience .et-status.unknown {
+  color: var(--status-unknown) !important;
+  background: var(--status-unknown-bg) !important;
+  border-color: var(--status-unknown-border) !important;
+  border-left-color: var(--status-unknown) !important;
+}
+
+.et-status-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  display: inline-grid !important;
+  place-items: center;
+  color: currentColor !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.et-status-icon.healthy { color: var(--status-normal) !important; }
+.et-status-icon.warning { color: var(--status-warning) !important; }
+.et-status-icon.error { color: var(--status-error) !important; }
+.et-status-icon.unknown { color: var(--status-unknown) !important; }
+
+.et-legend .et-legend-item {
+  gap: 5px;
+  padding: 0 !important;
+  color: var(--status-unknown) !important;
+  background: transparent !important;
+  border: 0 !important;
+  font-weight: 600;
+}
+
+.et-legend .et-legend-item.healthy { color: var(--status-normal) !important; }
+.et-legend .et-legend-item.warning { color: var(--status-warning) !important; }
+.et-legend .et-legend-item.error { color: var(--status-error) !important; }
+.et-legend .et-legend-item.unknown { color: var(--status-unknown) !important; }
+
+.et-cluster-card.status-healthy,
+.et-eventmesh-card.status-healthy,
+.et-component-stage.status-healthy .et-component-hero { border-top-color: var(--status-normal) !important; }
+.et-cluster-card.status-warning,
+.et-eventmesh-card.status-warning,
+.et-component-stage.status-warning .et-component-hero { border-top-color: var(--status-warning) !important; }
+.et-cluster-card.status-error,
+.et-eventmesh-card.status-error,
+.et-component-stage.status-error .et-component-hero { border-top-color: var(--status-error) !important; }
+.et-cluster-card.status-unknown,
+.et-eventmesh-card.status-unknown,
+.et-component-stage.status-unknown .et-component-hero { border-top-color: var(--status-unknown) !important; }
+
+.et-mini-node.status-healthy,
+.et-runtime-preview > .status-healthy { box-shadow: inset 3px 0 0 var(--status-normal) !important; }
+.et-mini-node.status-warning,
+.et-runtime-preview > .status-warning { box-shadow: inset 3px 0 0 var(--status-warning) !important; }
+.et-mini-node.status-error,
+.et-runtime-preview > .status-error { box-shadow: inset 3px 0 0 var(--status-error) !important; }
+.et-mini-node.status-unknown,
+.et-runtime-preview > .status-unknown { box-shadow: inset 3px 0 0 var(--status-unknown) !important; }
+
+.et-mini-node > small,
+.et-runtime-preview small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.et-kpis strong.warning { color: var(--status-warning) !important; }
+.et-kpis strong.error { color: var(--status-error) !important; }
+
+.health-tag.healthy,
+.status-pill.positive {
+  color: #2c7568;
+  background: #edf7f4;
+  border-color: #a9cec6;
+}
+
+.health-tag.warning,
+.status-pill.pending {
+  color: #9a5b00;
+  background: #fff6e7;
+  border-color: #e3bf80;
+}
+
+.status-pill.negative {
+  color: #a9433c;
+  background: #fff0ee;
+  border-color: #dfa6a1;
+}
+
+.health-tag.healthy i,
+.status-pill.positive i { background: #2c7568 !important; }
+.health-tag.warning i,
+.status-pill.pending i { background: #9a5b00 !important; }
+.status-pill.negative i { background: #a9433c !important; }
+
+/* Cluster-list status language mirrors the topology without increasing table
+   chrome or turning operational data into decorative badges. */
+.health-tag {
+  min-width: 66px;
+  height: 26px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 8px !important;
+  border-left-width: 3px !important;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.semantic-status-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  display: inline-grid;
+  place-items: center;
+  color: currentColor;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.health-tag.healthy {
+  color: #2c7568 !important;
+  background: #edf7f4 !important;
+  border-color: #a9cec6 !important;
+  border-left-color: #2c7568 !important;
+}
+
+.health-tag.warning {
+  color: #9a5b00 !important;
+  background: #fff6e7 !important;
+  border-color: #e3bf80 !important;
+  border-left-color: #9a5b00 !important;
+}
+
+.health-tag.error {
+  color: #a9433c !important;
+  background: #fff0ee !important;
+  border-color: #dfa6a1 !important;
+  border-left-color: #a9433c !important;
+}
+
+.health-tag.unknown {
+  color: #64768a !important;
+  background: #f1f5f8 !important;
+  border-color: #bdcad6 !important;
+  border-left-color: #64768a !important;
+}
+
+/* Resource lists share the same four semantic states as cluster and topology
+   views. The restrained fill keeps dense tables readable while the icon and
+   left rule make the state distinguishable without relying on color alone. */
+.status-pill {
+  min-width: 66px;
+  height: 26px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 8px !important;
+  border-left-width: 3px !important;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.status-pill.healthy {
+  color: #2c7568 !important;
+  background: #edf7f4 !important;
+  border-color: #a9cec6 !important;
+  border-left-color: #2c7568 !important;
+}
+
+.status-pill.warning {
+  color: #9a5b00 !important;
+  background: #fff6e7 !important;
+  border-color: #e3bf80 !important;
+  border-left-color: #9a5b00 !important;
+}
+
+.status-pill.error {
+  color: #a9433c !important;
+  background: #fff0ee !important;
+  border-color: #dfa6a1 !important;
+  border-left-color: #a9433c !important;
+}
+
+.status-pill.unknown {
+  color: #64768a !important;
+  background: #f1f5f8 !important;
+  border-color: #bdcad6 !important;
+  border-left-color: #64768a !important;
+}
+
+.operational-summary-label {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+}
+
+.operational-summary > .semantic-healthy {
+  background: #f8fbfa;
+  box-shadow: inset 3px 0 0 #2c7568;
+}
+
+.operational-summary > .semantic-warning {
+  background: #fffbf4;
+  box-shadow: inset 3px 0 0 #9a5b00;
+}
+
+.operational-summary > .semantic-error {
+  background: #fff8f7;
+  box-shadow: inset 3px 0 0 #a9433c;
+}
+
+.operational-summary > .semantic-unknown {
+  background: #f7f9fb;
+  box-shadow: inset 3px 0 0 #64768a;
+}
+
+.operational-summary > .semantic-healthy strong,
+.operational-summary > .semantic-healthy .semantic-status-icon { color: #2c7568; }
+.operational-summary > .semantic-warning strong,
+.operational-summary > .semantic-warning .semantic-status-icon { color: #9a5b00; }
+.operational-summary > .semantic-error strong,
+.operational-summary > .semantic-error .semantic-status-icon { color: #a9433c; }
+.operational-summary > .semantic-unknown strong,
+.operational-summary > .semantic-unknown .semantic-status-icon { color: #64768a; }
