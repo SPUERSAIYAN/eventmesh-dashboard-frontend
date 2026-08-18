@@ -1,9 +1,9 @@
-import { apiClient } from "./client.js";
-import { apiConfig } from "./config.js";
-import { clusterEntitySchema, parseArray, parseObject, runtimeEntitySchema, unwrapPayload } from "./contracts.js";
+import { apiClient } from "./client.ts";
+import { apiConfig } from "./config.ts";
+import { clusterEntitySchema, parseArray, parseObject, runtimeEntitySchema, unwrapPayload } from "./contracts.ts";
 import { z } from "zod";
 
-const passthroughItemSchema = z.unknown();
+const passthroughItemSchema = z.any();
 
 export const dashboardEndpoints = Object.freeze({
   clusters: "/user/cluster/queryClusterByOrganizationIdAndType",
@@ -207,7 +207,7 @@ function mapClusterReference(node) {
   };
 }
 
-function mapCluster(entity, index, enrichment = {}) {
+function mapCluster(entity, index, enrichment: any = {}) {
   const config = clusterConfig(entity);
   const backendId = numberId(entity.id ?? entity.clusterId);
   return {
@@ -243,21 +243,21 @@ async function settled(loader) {
   }
 }
 
-function sourceFrom(results, hasUnavailableFields = false) {
+function sourceFrom(results: Record<string, any>, hasUnavailableFields = false) {
   const values = Object.values(results);
   if (hasUnavailableFields || values.some((result) => !result?.ok)) return "mixed";
   return "live";
 }
 
-function fallbackReason(results) {
+function fallbackReason(results: Record<string, any>) {
   return Object.entries(results).filter(([, result]) => result && !result.ok).map(([name, result]) => `${name}: ${result.error}`).join("; ") || null;
 }
 
-async function collectClusterTypes(loader) {
+async function collectClusterTypes(loader: (clusterType: string) => Promise<any[]>) {
   const results = await Promise.allSettled(apiConfig.clusterTypes.map(loader));
   const successful = results.filter((result) => result.status === "fulfilled");
   if (!successful.length) throw results.find((result) => result.status === "rejected")?.reason ?? new Error("Cluster APIs are unavailable");
-  const unique = new Map();
+  const unique = new Map<string, any>();
   successful.flatMap((result) => result.value).forEach((entity) => {
     const key = String(entity.id ?? entity.clusterId ?? `${entity.clusterType}:${entity.name}`);
     if (!unique.has(key)) unique.set(key, entity);
@@ -423,9 +423,9 @@ export function createDashboardRepository(client = apiClient) {
   };
 }
 
-export const dashboardRepository = createDashboardRepository();
-export const clusterListPlaceholder = { data: [], meta: { source: "loading", fallbackReason: null, sources: {}, fetchedAt: null } };
-export const clusterDetailPlaceholder = (routeId) => ({
+export const dashboardRepository: any = createDashboardRepository();
+export const clusterListPlaceholder: any = { data: [], meta: { source: "loading", fallbackReason: null, sources: {}, fetchedAt: null } };
+export const clusterDetailPlaceholder = (routeId): any => ({
   data: {
     cluster: { id: String(routeId), name: String(routeId), status: "Unknown", score: null, version: "—", clusterId: "—", uptime: "—", created: "—", region: "—" },
     runtimes: [], topics: [], groups: [], topicCount: 0, groupCount: 0, recentChanges: [], topology: null, topologyError: null,

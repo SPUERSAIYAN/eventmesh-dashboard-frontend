@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clusterResourcePath, normalizeClusterView } from "../src/routes.js";
+import { clusterResourcePath, normalizeClusterView } from "../src/routes.ts";
 
 test("builds readable shareable cluster resource URLs", () => {
   assert.equal(

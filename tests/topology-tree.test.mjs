@@ -6,7 +6,7 @@ import {
   findResourceNode,
   flattenResourceTree,
   resourceTreeExpandedKeys,
-} from "../src/topologyTree.js";
+} from "../src/topologyTree.ts";
 
 const cluster = { id: "11", name: "prod-eventmesh", clusterType: "EVENTMESH_JVM_CLUSTER", status: "Healthy", version: "1.12.0" };
 const topology = {

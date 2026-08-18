@@ -397,7 +397,7 @@ export function translateText(language, text) {
   if (language !== "zh" || text == null) return text;
   const value = String(text);
   if (zh[value]) return zh[value];
-  const patterns = [
+  const patterns: Array<[RegExp, string]> = [
     [/^Started (.+)$/, "已启动 $1"],
     [/^Updated (.+) to (.+)$/, "已将 $1 更新为 $2"],
     [/^Created topic (.+)$/, "已创建主题 $1"],

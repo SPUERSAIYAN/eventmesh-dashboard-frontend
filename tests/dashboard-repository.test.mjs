@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createDashboardRepository, dashboardEndpoints } from "../src/api/dashboardRepository.js";
+import { createDashboardRepository, dashboardEndpoints } from "../src/api/dashboardRepository.ts";
 
 function liveClient({ failTopics = false } = {}) {
   return {

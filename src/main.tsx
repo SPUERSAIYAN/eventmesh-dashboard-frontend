@@ -1,8 +1,8 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { App } from "./App.jsx";
-import { I18nProvider } from "./i18n.jsx";
+import { App } from "./App.tsx";
+import { I18nProvider } from "./i18n.tsx";
 import "./styles.css";
 import "./topology.css";
 import "./cluster-reference.css";

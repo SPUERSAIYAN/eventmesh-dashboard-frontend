@@ -1,6 +1,6 @@
 const clusterViews = new Set(["overview", "topology", "configuration"]);
 
-export function normalizeClusterView(view, legacyTab) {
+export function normalizeClusterView(view, legacyTab = null) {
   if (clusterViews.has(view)) return view;
   return legacyTab === "topology" ? "topology" : "overview";
 }

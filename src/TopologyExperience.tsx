@@ -24,14 +24,14 @@ import {
 import { Alert, Button, Empty, Select, Spin, Tree } from "antd";
 import { useSearchParams } from "react-router-dom";
 import eventMeshLogo from "./assets/eventmesh-logo.svg";
-import { useI18n } from "./i18n.jsx";
+import { useI18n } from "./i18n.tsx";
 import {
   buildResourceTree,
   filterResourceTree,
   findResourceNode,
   flattenResourceTree,
   resourceTreeExpandedKeys,
-} from "./topologyTree.js";
+} from "./topologyTree.ts";
 
 function normalizedStatus(value) {
   const status = String(value ?? "Unknown").toLowerCase();
@@ -533,7 +533,7 @@ export function TopologyExperience({ cluster, topology, runtimes = [], topics = 
   const updateParams = (changes) => {
     setSearchParams((previous) => {
       const next = new URLSearchParams(previous);
-      Object.entries(changes).forEach(([key, value]) => value == null || value === "" ? next.delete(key) : next.set(key, value));
+      Object.entries(changes).forEach(([key, value]) => value == null || value === "" ? next.delete(key) : next.set(key, String(value)));
       return next;
     }, { replace: true });
   };
