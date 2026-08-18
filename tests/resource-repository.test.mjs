@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createResourceRepository, resourceEndpoints } from "../src/api/resourceRepository.js";
+import { createResourceRepository, resourceEndpoints } from "../src/api/resourceRepository.ts";
 
 function mysqlBackedClient() {
   return {

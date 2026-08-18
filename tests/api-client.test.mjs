@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { apiClient } from "../src/api/client.js";
-import { apiConfig } from "../src/api/config.js";
-import { unwrapPayload } from "../src/api/contracts.js";
+import { apiClient } from "../src/api/client.ts";
+import { apiConfig } from "../src/api/config.ts";
+import { unwrapPayload } from "../src/api/contracts.ts";
 
 test("uses the dashboard proxy, fixed organization default and pagination header", () => {
   assert.equal(apiClient.defaults.baseURL, "/eventmesh/dashboard");

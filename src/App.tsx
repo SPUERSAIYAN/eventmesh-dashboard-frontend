@@ -16,14 +16,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import eventMeshLogo from "./assets/eventmesh-logo.svg";
 import eventMeshHeaderLogo from "./assets/eventmesh-header-logo.png";
-import { clusterDetailPlaceholder, clusterListPlaceholder, dashboardRepository } from "./api/dashboardRepository.js";
-import { apiClient } from "./api/client.js";
-import { apiConfig } from "./api/config.js";
-import { unwrapPayload } from "./api/contracts.js";
-import { resourceRepository } from "./api/resourceRepository.js";
-import { TopologyExperience } from "./TopologyExperience.jsx";
-import { useI18n } from "./i18n.jsx";
-import { clusterResourcePath, normalizeClusterView } from "./routes.js";
+import { clusterDetailPlaceholder, clusterListPlaceholder, dashboardRepository } from "./api/dashboardRepository.ts";
+import { apiClient } from "./api/client.ts";
+import { apiConfig } from "./api/config.ts";
+import { unwrapPayload } from "./api/contracts.ts";
+import { resourceRepository } from "./api/resourceRepository.ts";
+import { TopologyExperience } from "./TopologyExperience.tsx";
+import { useI18n } from "./i18n.tsx";
+import { clusterResourcePath, normalizeClusterView } from "./routes.ts";
 
 const navSections = [
   { key: "resources", label: "Resource management", items: [
@@ -202,7 +202,7 @@ function ResourcePage({ type }) {
   const [pageSize, setPageSize] = useState(20);
   const [selectedTopic, setSelectedTopic] = useState(null);
   const navigate = useNavigate();
-  const { data: result, isFetching, error, refetch } = useQuery({ queryKey: ["resources", type], queryFn: config.loader });
+  const { data: result, isFetching, error, refetch } = useQuery<any>({ queryKey: ["resources", type], queryFn: config.loader });
   const rows = (result?.data ?? []).filter((item) => (clusterId === "all" || String(item.clusterId) === clusterId) && config.search(item).toLowerCase().includes(query.toLowerCase()));
   const visibleRows = rows.slice((page - 1) * pageSize, page * pageSize);
   const clusterOptions = [{ value: "all", label: t("All clusters") }, ...(result?.clusters ?? []).map((cluster) => ({ value: String(cluster.id), label: cluster.name }))];
@@ -316,7 +316,7 @@ function ClusterOverview() {
       setPage(1);
     }
   }, [searchParams]);
-  const createMutation = useMutation({
+  const createMutation = useMutation<any, Error, any>({
     mutationFn: (values) => dashboardRepository.createCluster(values),
     onSuccess: async ({ id, name }) => {
       await Promise.all([
@@ -536,7 +536,7 @@ function RuntimePanel({ runtimes, onViewAll, onViewRuntime }) {
   return <article className="panel runtime-panel"><div className="section-title"><div><h2>{t("Runtime list")}</h2><p>{language === "zh" ? `共 ${runtimes.length} 个已注册实例 · 当前接口只读` : `${runtimes.length} registered instances · read-only contract`}</p></div><Button type="text" icon={<ReloadOutlined />} onClick={onViewAll}>{t("View all")}</Button></div><RuntimeRows runtimes={runtimes} onView={onViewRuntime} /></article>;
 }
 
-function RuntimeRows({ runtimes, onView }) {
+function RuntimeRows({ runtimes, onView = null }) {
   const { t } = useI18n();
   return <div className="resource-table-wrap runtime-table-wrap"><table className="resource-table runtime-table"><thead><tr><th>{t("Runtime ID")}</th><th>{t("Address")}</th><th>{t("Status")}</th><th>{t("Version")}</th><th>{t("Actions")}</th></tr></thead><tbody>{runtimes.map((runtime) => <tr key={runtime.id}><td><strong>{runtime.name || runtime.id}</strong></td><td>{runtime.host ? `${runtime.host}:${runtime.port || "—"}` : "—"}</td><td><span className={`plain-status ${runtime.status === "Healthy" ? "normal" : "attention"}`}>{runtime.status === "Healthy" ? <CheckCircleOutlined /> : <ExclamationCircleOutlined />}{t(runtime.status)}</span></td><td>{runtime.version ?? "—"}</td><td>{onView ? <Button type="link" size="small" onClick={() => onView(runtime)}>{t("View")}</Button> : "—"}</td></tr>)}</tbody></table>{!runtimes.length && <div className="empty-state compact"><CloudServerOutlined /><b>{t("No runtimes")}</b></div>}</div>;
 }

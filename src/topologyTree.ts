@@ -155,7 +155,7 @@ function searchableText(node) {
     .toLocaleLowerCase();
 }
 
-export function nodeMatchesResourceFilters(node, filters = {}) {
+export function nodeMatchesResourceFilters(node, filters: any = {}) {
   if (node.virtual && (filters.kind && filters.kind !== "all" || filters.status && filters.status !== "all")) return false;
   const query = String(filters.query ?? "").trim().toLocaleLowerCase();
   const matchesQuery = !query || searchableText(node).includes(query);
@@ -164,7 +164,7 @@ export function nodeMatchesResourceFilters(node, filters = {}) {
   return matchesQuery && matchesKind && matchesStatus;
 }
 
-export function filterResourceTree(node, filters = {}) {
+export function filterResourceTree(node, filters: any = {}) {
   if (!node) return { tree: null, matchCount: 0, expandedKeys: [] };
   let matchCount = 0;
   const expanded = new Set();

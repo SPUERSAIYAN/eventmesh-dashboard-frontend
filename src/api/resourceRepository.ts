@@ -1,6 +1,6 @@
-import { apiClient } from "./client.js";
-import { apiConfig } from "./config.js";
-import { unwrapPayload } from "./contracts.js";
+import { apiClient } from "./client.ts";
+import { apiConfig } from "./config.ts";
+import { unwrapPayload } from "./contracts.ts";
 
 export const resourceEndpoints = Object.freeze({
   clusters: "/user/cluster/queryClusterByOrganizationIdAndType",
@@ -26,8 +26,8 @@ function withCluster(items, cluster) {
   return items.map((item) => ({ ...item, clusterName: cluster.name, clusterId: item.clusterId ?? cluster.id }));
 }
 
-function rejectionMessages(results) {
-  return results.filter((result) => result.status === "rejected").map((result) => result.reason?.message || "EventMesh Dashboard API is unavailable");
+function rejectionMessages(results: PromiseSettledResult<any>[]) {
+  return results.filter((result): result is PromiseRejectedResult => result.status === "rejected").map((result) => result.reason?.message || "EventMesh Dashboard API is unavailable");
 }
 
 export function createResourceRepository(client = apiClient) {
@@ -38,7 +38,7 @@ export function createResourceRepository(client = apiClient) {
     }));
     const successful = results.filter((result) => result.status === "fulfilled");
     if (!successful.length) throw results.find((result) => result.status === "rejected")?.reason ?? new Error("Cluster APIs are unavailable");
-    const unique = new Map();
+    const unique = new Map<string, any>();
     successful.flatMap((result) => result.value).forEach((cluster) => {
       const key = String(cluster.id ?? cluster.clusterId ?? `${cluster.clusterType}:${cluster.name}`);
       if (!unique.has(key)) unique.set(key, cluster);
@@ -58,7 +58,7 @@ export function createResourceRepository(client = apiClient) {
       return withCluster(listPayload(response, label), cluster);
     }));
     const successful = results.filter((result) => result.status === "fulfilled");
-    if (clusters.length && !successful.length) throw results[0].reason;
+    if (clusters.length && !successful.length) throw (results[0] as PromiseRejectedResult).reason;
     return { clusters, data: successful.flatMap((result) => result.value), warnings: rejectionMessages(results) };
   }
 
@@ -111,4 +111,4 @@ export function createResourceRepository(client = apiClient) {
   };
 }
 
-export const resourceRepository = createResourceRepository();
+export const resourceRepository: any = createResourceRepository();

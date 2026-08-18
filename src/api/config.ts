@@ -1,4 +1,4 @@
-const env = import.meta.env ?? {};
+const env = (import.meta as ImportMeta & { env?: ImportMetaEnv }).env ?? ({} as ImportMetaEnv);
 
 const defaultClusterTypes = [
   "EVENTMESH_JVM_CLUSTER",
