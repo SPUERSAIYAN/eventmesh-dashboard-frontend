@@ -1,55 +1,24 @@
 # EventMesh Dashboard API contracts
 
-The production frontend calls the backend through the same-origin prefix `/eventmesh/dashboard`. Every business request carries a Bearer access token and the active organization is read from the authenticated session.
+The current backend source is the only contract baseline. The frontend calls it through `/eventmesh/dashboard`, sends no token, and reads `organizationId` from `VITE_EVENTMESH_ORGANIZATION_ID` (default `1`).
 
-## Authentication and organization APIs
+## Enabled APIs
 
-| Use | Method and path | Response used |
-| --- | --- | --- |
-| Sign in | `POST /auth/login` | access/refresh tokens, user, organizations, current organization and role |
-| Rotate session | `POST /auth/refresh` | replacement access and refresh tokens |
-| Sign out | `POST /auth/logout` | `204` after refresh-session revocation |
-| Restore identity | `GET /auth/me` | current user, organizations and role |
-| Organizations | `GET /organizations` | organizations visible to the signed-in user |
-| Members | `GET/POST /organizations/{id}/members` | organization member directory and creation |
-| Member role/removal | `PATCH/DELETE /organizations/{id}/members/{userId}` | role update or membership deactivation |
+| Frontend use | Method and path |
+| --- | --- |
+| Cluster list | `POST /user/cluster/queryClusterByOrganizationIdAndType` |
+| Cluster creation | `POST /organization/activeCreate/createCluster` |
+| Runtime list / detail | `POST /runtime/queryRuntimeListByClusterId`, `POST /runtime/queryRuntimeListById` |
+| Cluster tree | `POST /user/cluster/queryTreeByClusterId` |
+| Topics | `POST /user/topic/queryTopicListByClusterId` |
+| Groups by cluster / Topic | `POST /user/group/queryGroupListByClusterId`, `POST /user/group/queryGroupListByTopicId` |
+| Configuration | `POST /user/config/queryByInstanceId` |
+| Operations | `POST /cluster/log/getList` |
 
-## Resource APIs
+All list requests carry `queryClause: {"limitPageNum":1,"limitSize":200}`. Raw and nested envelopes are unwrapped. An HTTP 200 response whose business `code` is not `0` or `200` is treated as a failure.
 
-| Frontend use | Method and path | Response used |
-| --- | --- | --- |
-| Cluster list | `POST /user/cluster/queryClusterByOrganizationIdAndType` | `ClusterEntity[]` |
-| Basic cluster creation | `POST /organization/activeCreate/createCluster` | generated cluster ID |
-| Runtime list | `POST /runtime/queryRuntimeListByClusterId` | `RuntimeEntity[]` |
-| Cluster topology | `POST /user/cluster/queryTreeByClusterId` | `ClusterTreeVO[]` |
-| Topics | `POST /user/topic/queryTopicListByClusterId` | `TopicEntity[]` |
-| Create topic | `POST /user/topic/createTopic` | success/empty payload |
-| Consumer groups | `POST /user/group/queryGroupListByClusterId` | `GroupEntity[]` |
-| Delete consumer group | `POST /user/group/deleteGroupById` | affected row count |
-| Health | `GET /cluster/health/getInstanceLiveProportion` | `{ abnormalNum, allNum }` |
-| Health history | `GET /cluster/health/getHistoryLiveStatus` | `HealthCheckResultEntity[]` |
-| Read configuration | `POST /user/config/queryByInstanceId` | `ConfigEntity[]` |
-| Connections | `POST /netConnection` | `NetConnectionEntity[]` |
-| Operations | `POST /cluster/log/getList` | `LogEntity[]` |
+## Deliberately excluded
 
-All list requests include:
+Authentication, members, role permissions, EventMesh-space creation, direct-relation querying, connections, ACL, health, configuration updates, Runtime creation, Topic writes, and consumer-group writes are not exposed. The normal cluster creation form is exposed by explicit product requirement, but the current backend handler still fails before persistence because it does not populate required cluster and relationship fields. The frontend displays that failure and never reports a false success.
 
-```text
-queryClause: {"limitPageNum":1,"limitSize":200}
-```
-
-The production profile enables the backend Decoration/PageHelper integration so this header is applied consistently. Raw, decorated and nested response envelopes are unwrapped by the client before validation.
-
-## Data and failure rules
-
-1. Production does not import or fall back to `src/data/dashboard.js`.
-2. A successful empty or `null` list is normalized to an empty list.
-3. Contract violations, HTTP errors and timeouts are shown as explicit error states.
-4. Successful sibling endpoints remain visible when another detail endpoint fails.
-5. CPU, memory and throughput remain unavailable until typed backend contracts exist.
-6. Operation audit is never requested or rendered for organization members.
-7. Unsupported script, metadata-file and copy creation flows are not exposed.
-8. Cluster inventory is queried for EventMesh JVM, logical EventMesh, RocketMQ, and Kafka types. A failure for one type does not hide successful results from the others.
-9. Configuration remains read-only because the current update handler does not persist the submitted changes.
-
-The backend validates both `organizationId` and `clusterId`. Changing either identifier outside the active organization returns HTTP 403 for non-system users.
+Empty lists remain valid empty states. A failing sibling request produces a partial-data state without fabricated metrics. CPU, memory, throughput, lag, connection counts, and health scores are never synthesized.

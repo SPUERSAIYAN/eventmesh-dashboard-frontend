@@ -1,4 +1,4 @@
-const clusterViews = new Set(["overview", "topology", "health", "configuration"]);
+const clusterViews = new Set(["overview", "topology", "configuration"]);
 
 export function normalizeClusterView(view, legacyTab) {
   if (clusterViews.has(view)) return view;
@@ -19,6 +19,8 @@ export function clusterResourcePath(clusterKey, view = "overview", search = {}) 
     params.delete("q");
     params.delete("component");
     params.delete("status");
+    params.delete("mode");
+    params.delete("kind");
   }
   const query = params.toString();
   return `/clusters/${encodeURIComponent(String(clusterKey))}/${normalizedView}${query ? `?${query}` : ""}`;

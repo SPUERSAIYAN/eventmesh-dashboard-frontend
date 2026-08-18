@@ -5,103 +5,64 @@ import { createResourceRepository, resourceEndpoints } from "../src/api/resource
 function mysqlBackedClient() {
   return {
     async post(url, body) {
-      if (url === resourceEndpoints.clusters) return { data: { data: [{ id: 1, name: "east" }, { id: 2, name: "west" }] } };
-      if (url === resourceEndpoints.topics) return { data: { data: [{ id: body.clusterId * 10, clusterId: body.clusterId, topicName: `topic-${body.clusterId}` }] } };
-      if (url === resourceEndpoints.groups) return { data: { data: [{ id: body.clusterId * 20, clusterId: body.clusterId, name: `group-${body.clusterId}` }] } };
-      if (url === resourceEndpoints.runtimes) return { data: { data: [{ id: body.clusterId * 30, clusterId: body.clusterId }] } };
-      if (url === resourceEndpoints.connections) return { data: { data: [{ id: body.clusterId, clusterId: body.clusterId, clientHost: "10.0.0.1" }] } };
-      if (url === resourceEndpoints.operations) return { data: { data: [{ id: body.clusterId, clusterId: body.clusterId, content: "Created topic" }] } };
+      if (url === resourceEndpoints.clusters) return { data: { code: 200, data: [{ id: 1, name: "east", clusterType: body.clusterType }, { id: 2, name: "west", clusterType: body.clusterType }] } };
+      if (url === resourceEndpoints.topics) return { data: [{ id: body.clusterId * 10, topicName: `topic-${body.clusterId}` }] };
+      if (url === resourceEndpoints.groups) return { data: [{ id: body.clusterId * 20, name: `group-${body.clusterId}` }] };
+      if (url === resourceEndpoints.runtimes) return { data: [{ id: body.clusterId * 30 }] };
+      if (url === resourceEndpoints.operations) return { data: [{ id: body.clusterId, content: "Created topic" }] };
+      if (url === resourceEndpoints.configs) return { data: [{ id: 1, configName: "eventmesh.server" }] };
       throw new Error(`unexpected endpoint ${url}`);
     },
   };
 }
 
-test("aggregates topic rows from every database-backed cluster", async () => {
+test("aggregates topics, groups and operations across stable cluster queries", async () => {
   const repository = createResourceRepository(mysqlBackedClient());
-  const result = await repository.getTopics();
-
-  assert.equal(result.data.length, 2);
-  assert.deepEqual(result.data.map((item) => item.clusterName), ["east", "west"]);
-  assert.deepEqual(result.data.map((item) => item.topicName), ["topic-1", "topic-2"]);
-});
-
-test("treats a null list from an empty cluster as no rows", async () => {
-  const client = mysqlBackedClient();
-  const originalPost = client.post;
-  client.post = async (url, body) => {
-    if (url === resourceEndpoints.topics && body.clusterId === 2) return { data: { code: 200, data: null } };
-    return originalPost(url, body);
-  };
-  const repository = createResourceRepository(client);
-
-  const result = await repository.getTopics();
-
-  assert.equal(result.data.length, 1);
-  assert.equal(result.data[0].clusterName, "east");
-});
-
-test("joins connection and operation rows with cluster names", async () => {
-  const repository = createResourceRepository(mysqlBackedClient());
-  const [connections, operations] = await Promise.all([repository.getConnections(), repository.getOperations()]);
-
-  assert.equal(connections.data[0].clusterName, "east");
+  const [topics, groups, operations] = await Promise.all([repository.getTopics(), repository.getGroups(), repository.getOperations()]);
+  assert.deepEqual(topics.data.map((item) => item.clusterName), ["east", "west"]);
+  assert.equal(groups.data.length, 2);
   assert.equal(operations.data[1].clusterName, "west");
 });
 
-test("overview counts only values returned by backend endpoints", async () => {
-  const repository = createResourceRepository(mysqlBackedClient());
-  const result = await repository.getOverview();
-
+test("overview contains only verified resource counts and operation rows", async () => {
+  const result = await createResourceRepository(mysqlBackedClient()).getOverview();
   assert.equal(result.clusters.length, 2);
-  assert.equal(result.resources.reduce((sum, item) => sum + item.runtimes, 0), 2);
-  assert.equal(result.connections.length, 2);
+  assert.equal(result.resources.reduce((sum, item) => sum + item.runtimes + item.topics + item.groups, 0), 6);
   assert.equal(result.operations.length, 2);
+  assert.equal(Object.hasOwn(result, "connections"), false);
 });
 
-test("keeps clusters returned by healthy cluster-type endpoints", async () => {
-  const client = mysqlBackedClient();
-  const originalPost = client.post;
-  client.post = async (url, body) => {
-    if (url === resourceEndpoints.clusters && body.clusterType === "STORAGE_KAFKA_CLUSTER") throw new Error("Kafka cluster query unavailable");
-    return originalPost(url, body);
-  };
-  const repository = createResourceRepository(client);
-
-  const clusters = await repository.getClusters();
-
-  assert.deepEqual(clusters.map((cluster) => cluster.name), ["east", "west"]);
+test("reads configuration and treats an empty cluster list as valid", async () => {
+  const repository = createResourceRepository(mysqlBackedClient());
+  assert.equal((await repository.getConfigs({ instanceId: 1 }))[0].configName, "eventmesh.server");
+  const empty = createResourceRepository({ async post() { return { data: [] }; } });
+  assert.deepEqual((await empty.getTopics()).data, []);
 });
 
-test("sorts database health history with the latest check first", async () => {
-  const repository = createResourceRepository({
-    async get(url) {
-      assert.equal(url, resourceEndpoints.healthHistory);
-      return { data: { data: [
-        { id: 1, finishTime: "2026-08-15T09:00:00" },
-        { id: 2, finishTime: "2026-08-15T11:00:00" },
-      ] } };
-    },
-  });
-
-  const checks = await repository.getHealthHistory({ type: 1, instanceId: 11 });
-
-  assert.deepEqual(checks.map((check) => check.id), [2, 1]);
+test("HTTP 200 business errors are rejected", async () => {
+  const repository = createResourceRepository({ async post() { return { data: { code: 500, data: "database error" } }; } });
+  await assert.rejects(repository.getClusters(), /database error/);
 });
 
-test("uses backend mutations for topic creation and group deletion", async () => {
-  const requests = [];
-  const repository = createResourceRepository({
+test("keeps successful cluster resources when one cluster request fails", async () => {
+  const client = {
     async post(url, body) {
-      requests.push({ url, body });
-      return { data: { code: 200, data: url === resourceEndpoints.createTopic ? 91 : true } };
+      if (url === resourceEndpoints.clusters) {
+        if (body.clusterType !== "EVENTMESH_JVM_CLUSTER") return { data: [] };
+        return { data: [{ id: 1, name: "healthy", clusterType: body.clusterType }, { id: 2, name: "broken", clusterType: body.clusterType }] };
+      }
+      if (url === resourceEndpoints.topics && body.clusterId === 2) throw new Error("broken cluster");
+      if (url === resourceEndpoints.topics) return { data: [{ id: 11, topicName: "orders" }] };
+      throw new Error(`unexpected ${url}`);
     },
-  });
+  };
+  const result = await createResourceRepository(client).getTopics();
+  assert.equal(result.data.length, 1);
+  assert.equal(result.data[0].clusterName, "healthy");
+  assert.deepEqual(result.warnings, ["broken cluster"]);
+});
 
-  await repository.createTopic({ clusterId: 11, clusterType: "EVENTMESH_JVM_CLUSTER", name: " orders ", description: " order events ", partitionsNums: 6, replicasNums: 3, saveTime: 72, cleanupStrategy: 0 });
-  await repository.deleteGroup(33);
-
-  assert.equal(requests[0].url, resourceEndpoints.createTopic);
-  assert.equal(requests[0].body.name, "orders");
-  assert.equal(requests[0].body.clusterId, 11);
-  assert.deepEqual(requests[1], { url: resourceEndpoints.deleteGroup, body: { id: 33 } });
+test("resource endpoints expose no excluded write, health or connection API", () => {
+  const endpointText = JSON.stringify(resourceEndpoints).toLowerCase();
+  ["createtopic", "deletegroup", "health", "connection", "member", "auth"].forEach((name) => assert.equal(endpointText.includes(name), false));
 });

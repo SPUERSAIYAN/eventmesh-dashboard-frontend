@@ -1,6 +1,5 @@
 import { apiClient } from "./client.js";
 import { apiConfig } from "./config.js";
-import { activeOrganizationId } from "./session.js";
 import { unwrapPayload } from "./contracts.js";
 
 export const resourceEndpoints = Object.freeze({
@@ -8,11 +7,7 @@ export const resourceEndpoints = Object.freeze({
   runtimes: "/runtime/queryRuntimeListByClusterId",
   topics: "/user/topic/queryTopicListByClusterId",
   groups: "/user/group/queryGroupListByClusterId",
-  connections: "/netConnection",
   operations: "/cluster/log/getList",
-  createTopic: "/user/topic/createTopic",
-  deleteGroup: "/user/group/deleteGroupById",
-  healthHistory: "/cluster/health/getHistoryLiveStatus",
   configs: "/user/config/queryByInstanceId",
 });
 
@@ -24,16 +19,15 @@ function listPayload(response, label) {
 }
 
 function clusterBody(clusterType = apiConfig.clusterType) {
-  return { organizationId: activeOrganizationId() ?? apiConfig.organizationId, clusterType };
+  return { organizationId: apiConfig.organizationId, clusterType };
 }
 
 function withCluster(items, cluster) {
   return items.map((item) => ({ ...item, clusterName: cluster.name, clusterId: item.clusterId ?? cluster.id }));
 }
 
-function sortNewestFirst(items) {
-  const timestamp = (item) => new Date(item.finishTime ?? item.beginTime ?? item.createTime ?? 0).getTime() || 0;
-  return [...items].sort((left, right) => timestamp(right) - timestamp(left));
+function rejectionMessages(results) {
+  return results.filter((result) => result.status === "rejected").map((result) => result.reason?.message || "EventMesh Dashboard API is unavailable");
 }
 
 export function createResourceRepository(client = apiClient) {
@@ -54,52 +48,22 @@ export function createResourceRepository(client = apiClient) {
 
   async function getClusterResources(endpoint, label, extra = {}) {
     const clusters = await getClusters();
-    const lists = await Promise.all(clusters.map(async (cluster) => {
+    const results = await Promise.allSettled(clusters.map(async (cluster) => {
       const response = await client.post(endpoint, {
         clusterId: cluster.id,
-        organizationId: activeOrganizationId() ?? apiConfig.organizationId,
+        organizationId: apiConfig.organizationId,
         clusterType: cluster.clusterType ?? apiConfig.clusterType,
         ...extra,
       });
       return withCluster(listPayload(response, label), cluster);
     }));
-    return { clusters, data: lists.flat() };
+    const successful = results.filter((result) => result.status === "fulfilled");
+    if (clusters.length && !successful.length) throw results[0].reason;
+    return { clusters, data: successful.flatMap((result) => result.value), warnings: rejectionMessages(results) };
   }
 
   return {
     getClusters,
-
-    async createTopic(input) {
-      const response = await client.post(resourceEndpoints.createTopic, {
-        organizationId: activeOrganizationId() ?? apiConfig.organizationId,
-        clusterId: Number(input.clusterId),
-        clusterType: input.clusterType ?? apiConfig.clusterType,
-        rangeType: "TOPIC",
-        operationRangeType: "CLUSTER",
-        operationRangeId: Number(input.clusterId),
-        operationDataTypeId: null,
-        operationDataId: null,
-        name: input.name.trim(),
-        description: input.description.trim(),
-        partitionsNums: Number(input.partitionsNums),
-        replicasNums: Number(input.replicasNums),
-        saveTime: Number(input.saveTime),
-        cleanupStrategy: Number(input.cleanupStrategy),
-      });
-      return unwrapPayload(response.data);
-    },
-
-    async deleteGroup(id) {
-      const response = await client.post(resourceEndpoints.deleteGroup, { id: Number(id) });
-      return unwrapPayload(response.data);
-    },
-
-    async getHealthHistory({ type, instanceId, hours = 24 }) {
-      const start = new Date(Date.now() - hours * 3_600_000);
-      const startTime = start.toISOString().slice(0, 19);
-      const response = await client.get(resourceEndpoints.healthHistory, { params: { type, instanceId, startTime } });
-      return sortNewestFirst(listPayload(response, "Health history"));
-    },
 
     async getConfigs({ instanceId, instanceType = "CLUSTER", configName = null }) {
       const response = await client.post(resourceEndpoints.configs, { instanceId: Number(instanceId), instanceType, configName });
@@ -114,19 +78,15 @@ export function createResourceRepository(client = apiClient) {
       return getClusterResources(resourceEndpoints.groups, "Consumer groups");
     },
 
-    async getConnections() {
-      return getClusterResources(resourceEndpoints.connections, "Connections");
-    },
-
     async getOperations() {
       return getClusterResources(resourceEndpoints.operations, "Operations");
     },
 
     async getOverview({ includeOperations = true } = {}) {
       const clusters = await getClusters();
-      const [resources, connectionLists, operationLists] = await Promise.all([
-        Promise.all(clusters.map(async (cluster) => {
-          const body = { clusterId: cluster.id, organizationId: activeOrganizationId() ?? apiConfig.organizationId, clusterType: cluster.clusterType ?? apiConfig.clusterType };
+      const [resourceResults, operationResults] = await Promise.all([
+        Promise.allSettled(clusters.map(async (cluster) => {
+          const body = { clusterId: cluster.id, organizationId: apiConfig.organizationId, clusterType: cluster.clusterType ?? apiConfig.clusterType };
           const [runtimes, topics, groups] = await Promise.all([
             client.post(resourceEndpoints.runtimes, body),
             client.post(resourceEndpoints.topics, { ...body, topicName: null }),
@@ -139,14 +99,13 @@ export function createResourceRepository(client = apiClient) {
             groups: listPayload(groups, "Consumer groups").length,
           };
         })),
-        Promise.all(clusters.map((cluster) => client.post(resourceEndpoints.connections, { clusterId: cluster.id }).then((response) => withCluster(listPayload(response, "Connections"), cluster)))),
-        includeOperations ? Promise.all(clusters.map((cluster) => client.post(resourceEndpoints.operations, { clusterId: cluster.id }).then((response) => withCluster(listPayload(response, "Operations"), cluster)))) : Promise.resolve([]),
+        includeOperations ? Promise.allSettled(clusters.map((cluster) => client.post(resourceEndpoints.operations, { clusterId: cluster.id }).then((response) => withCluster(listPayload(response, "Operations"), cluster)))) : Promise.resolve([]),
       ]);
       return {
         clusters,
-        resources,
-        connections: connectionLists.flat(),
-        operations: operationLists.flat(),
+        resources: resourceResults.filter((result) => result.status === "fulfilled").map((result) => result.value),
+        operations: operationResults.filter((result) => result.status === "fulfilled").flatMap((result) => result.value),
+        warnings: [...rejectionMessages(resourceResults), ...rejectionMessages(operationResults)],
       };
     },
   };

@@ -10,21 +10,28 @@ test("builds readable shareable cluster resource URLs", () => {
 });
 
 test("keeps topology state only on topology URLs", () => {
-  const params = new URLSearchParams("node=runtime-22&q=broker&component=storage&status=healthy&source=share&tab=topology");
+  const params = new URLSearchParams("mode=tree&node=runtime-22&q=broker&kind=runtime&component=storage&status=healthy&source=share&tab=topology");
   assert.equal(
     clusterResourcePath("prod-eventmesh-east", "overview", params),
     "/clusters/prod-eventmesh-east/overview?source=share",
   );
   assert.equal(
     clusterResourcePath("prod-eventmesh-east", "topology", params),
-    "/clusters/prod-eventmesh-east/topology?node=runtime-22&q=broker&component=storage&status=healthy&source=share",
+    "/clusters/prod-eventmesh-east/topology?mode=tree&node=runtime-22&q=broker&kind=runtime&component=storage&status=healthy&source=share",
+  );
+});
+
+test("builds shareable resource-tree URLs", () => {
+  assert.equal(
+    clusterResourcePath("prod-eventmesh", "topology", { mode: "tree", kind: "topic", q: "orders", node: "topic-301" }),
+    "/clusters/prod-eventmesh/topology?mode=tree&kind=topic&q=orders&node=topic-301",
   );
 });
 
 test("normalizes legacy tab links and invalid views", () => {
   assert.equal(normalizeClusterView(undefined, "topology"), "topology");
   assert.equal(normalizeClusterView("topology"), "topology");
-  assert.equal(normalizeClusterView("health"), "health");
+  assert.equal(normalizeClusterView("health"), "overview");
   assert.equal(normalizeClusterView("configuration"), "configuration");
   assert.equal(normalizeClusterView("invalid"), "overview");
 });

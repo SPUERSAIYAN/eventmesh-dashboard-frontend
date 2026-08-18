@@ -758,6 +758,7 @@
 .et-inspector-identity > div { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
 .et-inspector-identity > div > small { color: #8a98ab; font-size: 9px; text-transform: uppercase; }
 .et-inspector-identity > div > strong { max-width: 200px; margin: 2px 0 6px; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.et-directory-label { padding: 3px 6px; border: 1px solid #d4e1ef; color: #5f7388; background: #f8fbfe; font-size: 9px; font-style: normal; font-weight: 700; }
 .et-inspector dl { margin: 16px 0 0; border: 1px solid #e2e8f1; border-radius: 12px; overflow: hidden; }
 .et-inspector dl > div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 10px; padding: 11px 12px; border-bottom: 1px solid #edf1f6; font-size: 11px; }
 .et-inspector dl > div:last-child { border-bottom: 0; }
@@ -840,4 +841,200 @@
   .et-cluster-card,
   .et-eventmesh-card,
   .et-mini-node { transition: none; }
+}
+
+/* Resource-tree mode extends the topology workbench without introducing a
+   second visual system. Virtual directories are deliberately neutral so they
+   cannot be mistaken for backend relationship edges. */
+.et-command-leading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.et-view-switch {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid #d4e1ef;
+  background: #f8fbfe;
+}
+
+.et-view-switch button {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 0;
+  color: #5f7388;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.et-view-switch button.active {
+  color: #225aa0;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(32, 50, 71, .12);
+}
+
+.et-tree-crumb {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.et-tree-crumb b {
+  color: #a8b6c6;
+  font-weight: 400;
+}
+
+.et-tree-command-summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: #225aa0;
+}
+
+.et-tree-command-summary > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.et-tree-command-summary strong { color: #203247; font-size: 12px; }
+.et-tree-command-summary small { margin-top: 2px; color: #5f7388; font-size: 9px; }
+.et-legend.tree em { display: inline-flex; align-items: center; gap: 6px; color: #5f7388; }
+
+.et-canvas-scroll.tree {
+  overflow: hidden;
+  background: #f8fbfe;
+}
+
+.et-tree-stage {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.et-tree-toolbar {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 148px 134px auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #d4e1ef;
+  background: #fff;
+}
+
+.et-tree-toolbar > div:first-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.et-tree-toolbar > div:first-child strong { color: #203247; font-size: 12px; }
+.et-tree-toolbar > div:first-child span { margin-top: 2px; color: #5f7388; font-size: 10px; }
+.et-tree-toolbar .ant-select { width: 100%; }
+.et-tree-expand-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.et-tree-expand-actions .ant-btn { border-radius: 0; font-size: 11px; }
+
+.et-tree-content {
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px 18px;
+  background: #f8fbfe;
+}
+
+.et-tree-content .ant-tree {
+  color: #203247;
+  background: transparent;
+  font-size: 12px;
+}
+
+.et-tree-content .ant-tree-list-holder-inner { gap: 2px; }
+.et-tree-content .ant-tree-treenode { width: 100%; min-height: 48px; align-items: center; padding: 0; }
+.et-tree-content .ant-tree-indent-unit { width: 24px; }
+.et-tree-content .ant-tree-switcher { color: #71869c; }
+.et-tree-content .ant-tree-node-content-wrapper { min-width: 0; flex: 1; padding: 0 !important; border-radius: 0; }
+.et-tree-content .ant-tree-node-content-wrapper:hover { background: #eef5fb; }
+.et-tree-content .ant-tree-node-selected { background: #e8f1fa !important; box-shadow: inset 3px 0 #225aa0; }
+.et-tree-content .ant-tree-title { display: block; width: 100%; }
+
+.et-tree-node {
+  min-width: 0;
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: 30px minmax(120px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 7px;
+  border-bottom: 1px solid #e5edf5;
+  border-left: 3px solid #64768a;
+  background: #fff;
+}
+
+.et-tree-node.status-healthy { border-left-color: #2c7568; }
+.et-tree-node.status-warning { border-left-color: #9a5b00; }
+.et-tree-node.status-error { border-left-color: #a9433c; }
+.et-tree-node.virtual { border-left-color: #9aacbe; background: #f5f9fc; }
+
+.et-tree-node-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: #225aa0;
+  background: #edf4fb;
+  font-size: 14px;
+}
+
+.et-tree-node.virtual .et-tree-node-icon { color: #64768a; background: #e9f0f6; }
+.et-tree-node-copy { min-width: 0; display: flex; flex-direction: column; }
+.et-tree-node-copy strong, .et-tree-node-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.et-tree-node-copy strong { color: #203247; font-size: 12px; }
+.et-tree-node-copy small { margin-top: 2px; color: #5f7388; font-size: 9px; }
+.et-tree-node-meta { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.et-tree-node-meta em { padding: 2px 6px; border: 1px solid #d4e1ef; color: #5f7388; background: #fff; font-size: 9px; font-style: normal; white-space: nowrap; }
+.et-tree-node-meta .et-status { min-width: 72px; justify-content: flex-start; }
+
+.et-inspector-path {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 14px;
+  padding: 11px 12px;
+  border-left: 3px solid #225aa0;
+  background: #f2f7fc;
+}
+
+.et-inspector-path > small { color: #5f7388; font-size: 9px; }
+.et-inspector-path > span { display: flex; flex-wrap: wrap; gap: 4px; color: #203247; font-size: 10px; line-height: 1.5; }
+.et-inspector-path > span > span { display: inline-flex; gap: 4px; }
+.et-inspector-path b { color: #91a1b2; font-weight: 400; }
+.et-inspector-path em { font-style: normal; font-weight: 700; }
+.et-inspector-path > strong { color: #225aa0; font-size: 9px; font-weight: 700; }
+
+@container (max-width: 1180px) {
+  .et-view-switch button { width: 34px; justify-content: center; padding: 0; }
+  .et-view-switch button { font-size: 0; }
+  .et-view-switch button .anticon { font-size: 13px; }
+  .et-tree-toolbar { grid-template-columns: minmax(150px, 1fr) 130px 124px; }
+  .et-tree-expand-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}
+
+@media (max-width: 900px) {
+  .et-command-leading { min-width: 0; }
+  .et-tree-command-summary { display: none; }
+  .et-tree-toolbar { grid-template-columns: 1fr 1fr; }
+  .et-tree-toolbar > div:first-child { grid-column: 1 / -1; }
+  .et-tree-expand-actions { grid-column: 1 / -1; }
+  .et-tree-node { grid-template-columns: 30px minmax(100px, 1fr); }
+  .et-tree-node-meta { grid-column: 2; justify-content: flex-start; }
 }
