@@ -1,7 +1,6 @@
 import { apiClient } from "./client.js";
 import { apiConfig } from "./config.js";
-import { activeOrganizationId } from "./session.js";
-import { clusterEntitySchema, healthProportionSchema, parseArray, parseObject, runtimeEntitySchema, unwrapPayload } from "./contracts.js";
+import { clusterEntitySchema, parseArray, parseObject, runtimeEntitySchema, unwrapPayload } from "./contracts.js";
 import { z } from "zod";
 
 const passthroughItemSchema = z.unknown();
@@ -11,8 +10,8 @@ export const dashboardEndpoints = Object.freeze({
   runtimes: "/runtime/queryRuntimeListByClusterId",
   topics: "/user/topic/queryTopicListByClusterId",
   groups: "/user/group/queryGroupListByClusterId",
-  health: "/cluster/health/getInstanceLiveProportion",
-  connections: "/netConnection",
+  groupsByTopic: "/user/group/queryGroupListByTopicId",
+  runtimeDetail: "/runtime/queryRuntimeListById",
   operations: "/cluster/log/getList",
   topology: "/user/cluster/queryTreeByClusterId",
   createCluster: "/organization/activeCreate/createCluster",
@@ -53,7 +52,7 @@ function uptimeFrom(value, fallback) {
   return `${Math.floor(hours / 24)}d ${hours % 24}h`;
 }
 
-function mapRuntime(entity, index, connectionCounts = new Map()) {
+function mapRuntime(entity, index) {
   return {
     id: String(entity.id ?? entity.name ?? `runtime-${index + 1}`),
     name: entity.name ?? `runtime-${index + 1}`,
@@ -64,7 +63,7 @@ function mapRuntime(entity, index, connectionCounts = new Map()) {
     status: normalizeStatus(entity.status ?? entity.deployStatusType, "Healthy"),
     cpu: null,
     memory: null,
-    connections: connectionCounts.get(String(entity.id)) ?? 0,
+    raw: entity,
   };
 }
 
@@ -143,7 +142,6 @@ export function buildClusterTopology(cluster, directRuntimes = [], relatedNodes 
     parentId: root.id,
     parentName: root.name,
     description: null,
-    connections: runtime.connections,
     children: [],
   })).filter((runtime) => {
     if (seen.has(runtime.key)) return false;
@@ -212,19 +210,13 @@ function mapClusterReference(node) {
 function mapCluster(entity, index, enrichment = {}) {
   const config = clusterConfig(entity);
   const backendId = numberId(entity.id ?? entity.clusterId);
-  const health = enrichment.health;
-  const allHealthChecks = health?.allNum ?? enrichment.runtimes?.length;
-  const abnormalChecks = health?.abnormalNum;
-  const score = Number.isFinite(allHealthChecks) && allHealthChecks > 0 && Number.isFinite(abnormalChecks)
-    ? Math.max(0, Math.round(((allHealthChecks - abnormalChecks) / allHealthChecks) * 100))
-    : null;
   return {
     id: backendId ? String(backendId) : String(entity.name ?? `cluster-${index + 1}`),
     backendId,
     name: entity.name ?? `Cluster ${index + 1}`,
     clusterType: entity.clusterType ?? apiConfig.clusterType,
-    status: abnormalChecks > 0 ? "Warning" : normalizeStatus(entity.status ?? entity.deployStatusType, "Warning"),
-    score,
+    status: normalizeStatus(entity.status ?? entity.deployStatusType, "Unknown"),
+    score: null,
     version: entity.version ?? "—",
     description: entity.description ?? "—",
     architecture: entity.replicationType ?? null,
@@ -274,7 +266,7 @@ async function collectClusterTypes(loader) {
 }
 
 export function createDashboardRepository(client = apiClient) {
-  const organizationId = () => activeOrganizationId() ?? apiConfig.organizationId;
+  const organizationId = () => apiConfig.organizationId;
 
   async function fetchClusterEntities() {
     return collectClusterTypes(async (clusterType) => {
@@ -298,16 +290,6 @@ export function createDashboardRepository(client = apiClient) {
     return parseArray(passthroughItemSchema, response.data, "group list");
   }
 
-  async function fetchHealth(clusterId) {
-    const response = await client.get(dashboardEndpoints.health, { params: { instanceType: 2, theClusterId: clusterId } });
-    return parseObject(healthProportionSchema, response.data, "health proportion");
-  }
-
-  async function fetchConnections(clusterId) {
-    const response = await client.post(dashboardEndpoints.connections, { clusterId });
-    return parseArray(passthroughItemSchema, response.data, "connection list");
-  }
-
   async function fetchOperations(clusterId) {
     const response = await client.post(dashboardEndpoints.operations, { clusterId });
     return parseArray(passthroughItemSchema, response.data, "operation list");
@@ -327,16 +309,15 @@ export function createDashboardRepository(client = apiClient) {
     const clusterId = numberId(entity.id ?? entity.clusterId);
     if (!clusterId) throw new Error("cluster response does not contain a numeric id");
     const clusterType = entity.clusterType ?? apiConfig.clusterType;
-    const [runtimesResult, topicsResult, groupsResult, healthResult, connectionsResult, operationsResult] = await Promise.all([
-      settled(() => fetchRuntimes(clusterId, clusterType)), settled(() => fetchTopics(clusterId, clusterType)), settled(() => fetchGroups(clusterId, clusterType)), settled(() => fetchHealth(clusterId)),
-      settled(() => fetchConnections(clusterId)), includeOperations ? settled(() => fetchOperations(clusterId)) : Promise.resolve({ ok: false, skipped: true, error: "Not requested" }),
+    const [runtimesResult, topicsResult, groupsResult, operationsResult] = await Promise.all([
+      settled(() => fetchRuntimes(clusterId, clusterType)), settled(() => fetchTopics(clusterId, clusterType)), settled(() => fetchGroups(clusterId, clusterType)),
+      includeOperations ? settled(() => fetchOperations(clusterId)) : Promise.resolve({ ok: true, skipped: true, data: [] }),
     ]);
-    const results = { runtimes: runtimesResult, topics: topicsResult, groups: groupsResult, health: healthResult, connections: connectionsResult, operations: operationsResult };
+    const results = { runtimes: runtimesResult, topics: topicsResult, groups: groupsResult, operations: operationsResult };
     const cluster = mapCluster(entity, index, {
       runtimes: runtimesResult.ok ? runtimesResult.data : undefined,
       topics: topicsResult.ok ? topicsResult.data : undefined,
       groups: groupsResult.ok ? groupsResult.data : undefined,
-      health: healthResult.ok ? healthResult.data : undefined,
     });
     return { cluster, results };
   }
@@ -345,16 +326,27 @@ export function createDashboardRepository(client = apiClient) {
     async createCluster(input) {
       const response = await client.post(dashboardEndpoints.createCluster, {
         organizationId: organizationId(),
+        clusterId: Number(input.parentClusterId),
         clusterType: input.clusterType || apiConfig.clusterType,
         name: input.name.trim(),
         version: input.version.trim(),
         description: input.description.trim(),
         firstToWhom: input.firstToWhom || "DASHBOARD",
-        trusteeshipArrangeType: input.trusteeshipArrangeType || "SELF",
+        trusteeshipArrangeType: input.trusteeshipArrangeType || "NOT",
       });
       const id = unwrapPayload(response.data);
       if (id == null || !["number", "string"].includes(typeof id)) throw new Error("Create cluster API did not return a cluster ID");
       return { id: String(id), name: input.name.trim() };
+    },
+
+    async getRuntimeById(id) {
+      const response = await client.post(dashboardEndpoints.runtimeDetail, { id: Number(id) });
+      return parseObject(runtimeEntitySchema, response.data, "runtime detail");
+    },
+
+    async getGroupsByTopicId(id) {
+      const response = await client.post(dashboardEndpoints.groupsByTopic, { id: Number(id) });
+      return parseArray(passthroughItemSchema, response.data, "topic consumer groups");
     },
 
     async getClusters() {
@@ -388,7 +380,7 @@ export function createDashboardRepository(client = apiClient) {
         ]);
         return {
           data: clusters,
-          meta: { source: sourceFrom(allResults, true), fallbackReason: fallbackReason(allResults), sources: { clusters: "api", summaries: sourceFrom(allResults), topology: topologyResults.every((result) => result.ok) ? "api" : "unavailable" }, fetchedAt: new Date().toISOString() },
+          meta: { source: sourceFrom(allResults), fallbackReason: fallbackReason(allResults), sources: { clusters: "api", summaries: sourceFrom(allResults), topology: topologyResults.every((result) => result.ok) ? "api" : "unavailable" }, fetchedAt: new Date().toISOString() },
         };
     },
 
@@ -397,9 +389,7 @@ export function createDashboardRepository(client = apiClient) {
         const entity = entities.find((item) => String(item.id ?? item.clusterId) === String(routeId) || item.name === routeId);
         if (!entity) throw new Error(`cluster ${routeId} was not returned by the API`);
         const { cluster, results } = await enrich(entity, Math.max(0, entities.indexOf(entity)), { includeOperations });
-        const connectionCounts = new Map();
-        if (results.connections.ok) results.connections.data.forEach((connection) => connectionCounts.set(String(connection.runtimeId), (connectionCounts.get(String(connection.runtimeId)) ?? 0) + 1));
-        const runtimesData = results.runtimes.ok ? results.runtimes.data.map((runtime, index) => mapRuntime(runtime, index, connectionCounts)) : [];
+        const runtimesData = results.runtimes.ok ? results.runtimes.data.map((runtime, index) => mapRuntime(runtime, index)) : [];
         const topologyResult = await settled(() => fetchTopology(cluster.backendId, cluster.clusterType));
         const dashboardResults = { ...results, topology: topologyResult };
         return {
@@ -408,23 +398,20 @@ export function createDashboardRepository(client = apiClient) {
             runtimes: runtimesData,
             topics: results.topics.ok ? results.topics.data : [],
             groups: results.groups.ok ? results.groups.data : [],
-            connections: results.connections.ok ? results.connections.data : [],
             topicCount: results.topics.ok ? results.topics.data.length : cluster.topics,
             groupCount: results.groups.ok ? results.groups.data.length : cluster.groups,
-            connectionCount: results.connections.ok ? results.connections.data.length : null,
             recentChanges: results.operations.ok ? results.operations.data.map(mapOperation) : [],
             topology: buildClusterTopology(cluster, runtimesData, topologyResult.ok ? topologyResult.data : []),
             topologyError: topologyResult.ok ? null : topologyResult.error,
           },
           meta: {
-            source: sourceFrom({ cluster: { ok: true }, ...dashboardResults }, true),
+            source: sourceFrom({ cluster: { ok: true }, ...dashboardResults }),
             fallbackReason: fallbackReason(dashboardResults),
             sources: {
               cluster: "api",
               runtimes: results.runtimes.ok ? "api" : "unavailable",
               topics: results.topics.ok ? "api" : "unavailable",
               groups: results.groups.ok ? "api" : "unavailable",
-              health: results.health.ok ? "api" : "unavailable",
               throughput: cluster.inbound && cluster.outbound ? "api" : "unavailable",
               changes: results.operations.ok ? "api" : "unavailable",
               topology: topologyResult.ok ? "api" : "unavailable",
@@ -441,7 +428,7 @@ export const clusterListPlaceholder = { data: [], meta: { source: "loading", fal
 export const clusterDetailPlaceholder = (routeId) => ({
   data: {
     cluster: { id: String(routeId), name: String(routeId), status: "Unknown", score: null, version: "—", clusterId: "—", uptime: "—", created: "—", region: "—" },
-    runtimes: [], topics: [], groups: [], connections: [], topicCount: 0, groupCount: 0, connectionCount: 0, recentChanges: [], topology: null, topologyError: null,
+    runtimes: [], topics: [], groups: [], topicCount: 0, groupCount: 0, recentChanges: [], topology: null, topologyError: null,
   },
   meta: { source: "loading", fallbackReason: null, sources: {}, fetchedAt: null },
 });

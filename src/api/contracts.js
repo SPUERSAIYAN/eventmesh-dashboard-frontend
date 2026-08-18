@@ -30,16 +30,15 @@ export const runtimeEntitySchema = z.object({
   startTimestamp: z.string().optional().nullable(),
 }).passthrough();
 
-export const healthProportionSchema = z.object({
-  abnormalNum: z.coerce.number().optional().nullable(),
-  allNum: z.coerce.number().optional().nullable(),
-}).passthrough();
-
 export function unwrapPayload(payload) {
   let current = payload;
   const envelopeKeys = ["data", "result", "content", "records", "list"];
   for (let depth = 0; depth < 5; depth += 1) {
     if (Array.isArray(current) || current == null || typeof current !== "object") return current;
+    if (Object.prototype.hasOwnProperty.call(current, "code") && ![0, 200, "0", "200"].includes(current.code)) {
+      const detail = typeof current.data === "string" ? current.data : current.message;
+      throw new Error(detail || `EventMesh Dashboard API returned business code ${current.code}`);
+    }
     const key = envelopeKeys.find((candidate) => Object.prototype.hasOwnProperty.call(current, candidate));
     if (!key) return current;
     current = current[key];

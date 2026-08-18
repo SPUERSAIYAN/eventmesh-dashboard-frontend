@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ApartmentOutlined,
   ApiOutlined,
   AppstoreOutlined,
   ArrowDownOutlined,
@@ -11,17 +12,26 @@ import {
   CloseCircleOutlined,
   DatabaseOutlined,
   ExclamationCircleOutlined,
+  FolderOpenOutlined,
+  FolderOutlined,
   InfoCircleOutlined,
-  LinkOutlined,
   QuestionCircleOutlined,
   ReloadOutlined,
   SearchOutlined,
   TeamOutlined,
+  UnorderedListOutlined,
 } from "@ant-design/icons";
-import { Alert, Spin } from "antd";
+import { Alert, Button, Empty, Select, Spin, Tree } from "antd";
 import { useSearchParams } from "react-router-dom";
 import eventMeshLogo from "./assets/eventmesh-logo.svg";
 import { useI18n } from "./i18n.jsx";
+import {
+  buildResourceTree,
+  filterResourceTree,
+  findResourceNode,
+  flattenResourceTree,
+  resourceTreeExpandedKeys,
+} from "./topologyTree.js";
 
 function normalizedStatus(value) {
   const status = String(value ?? "Unknown").toLowerCase();
@@ -96,35 +106,70 @@ function clusterNameSuffix(clusterType, language) {
 }
 
 function iconFor(kind) {
-  if (kind === "connection") return <LinkOutlined />;
+  if (kind === "directory") return <FolderOutlined />;
   if (kind === "topic") return <AppstoreOutlined />;
   if (kind === "group") return <TeamOutlined />;
   if (kind === "runtime") return <CloudServerOutlined />;
   if (kind === "resource") return <ApiOutlined />;
-  if (kind === "access") return <LinkOutlined />;
   if (kind === "storage") return <DatabaseOutlined />;
   return <ClusterOutlined />;
+}
+
+function resourceKindCopy(node, language) {
+  const zh = language === "zh";
+  return ({
+    cluster: zh ? "集群" : "Cluster",
+    runtime: "Runtime",
+    topic: "Topic",
+    group: zh ? "消费组" : "Consumer group",
+    connection: zh ? "连接" : "Connection",
+    directory: zh ? "资源目录" : "Resource directory",
+  })[node?.kind] ?? displayValue(node?.kind);
+}
+
+function relationCopy(relation, language) {
+  const zh = language === "zh";
+  return ({
+    ROOT: zh ? "拓扑根节点" : "Topology root",
+    CLUSTER_RELATIONSHIP: zh ? "真实集群依赖" : "Cluster dependency",
+    DIRECT_RUNTIME_GROUP: zh ? "直属 Runtime 目录" : "Direct Runtime directory",
+    DIRECT_RUNTIME: zh ? "直属 Runtime" : "Direct Runtime",
+    RUNTIME_MEMBER: zh ? "集群 Runtime 成员" : "Cluster Runtime member",
+    RESOURCE_DIRECTORY: zh ? "资源目录（非拓扑边）" : "Resource directory (not a topology edge)",
+    RESOURCE_MEMBERSHIP: zh ? "资源归属（非拓扑边）" : "Resource membership (not a topology edge)",
+  })[relation] ?? displayValue(relation);
 }
 
 function rowsForNode(node, language) {
   if (!node) return [];
   const zh = language === "zh";
+  if (node.kind === "directory") return [
+    [zh ? "目录类型" : "Directory type", resourceKindCopy(node, language)],
+    [zh ? "关系说明" : "Relationship", relationCopy(node.relation, language)],
+    [zh ? "直属项目" : "Direct items", displayValue(node.children?.length)],
+    [zh ? "数据说明" : "Data note", zh ? "用于定位资源，不代表后端拓扑边" : "Used for resource discovery; not a backend topology edge"],
+  ];
+  if (node.kind === "cluster" && node.pathKeys) {
+    const realChildren = (node.children ?? []).filter((child) => !child.virtual);
+    const runtimeCount = flattenNodes(node, []).filter((child) => child.kind === "runtime").length;
+    return [
+      [zh ? "节点类型" : "Node type", resourceKindCopy(node, language)],
+      [zh ? "关系类型" : "Relationship", relationCopy(node.relation, language)],
+      [zh ? "运行状态" : "Status", statusCopy(node.status, language)],
+      [zh ? "版本" : "Version", displayValue(node.version)],
+      [zh ? "Runtime 数量" : "Runtimes", runtimeCount],
+      [zh ? "真实子关系" : "Relationship children", realChildren.length],
+      [zh ? "集群 ID" : "Cluster ID", displayValue(node.id)],
+      [zh ? "说明" : "Description", displayValue(node.description)],
+    ];
+  }
   if (node.kind === "runtime") return [
     [zh ? "节点类型" : "Node type", "Runtime"],
     [zh ? "运行状态" : "Status", statusCopy(node.status, language)],
     [zh ? "主机地址" : "Host", displayValue(node.host)],
     [zh ? "服务端口" : "Port", displayValue(node.port)],
     [zh ? "版本" : "Version", displayValue(node.version)],
-    [zh ? "当前连接" : "Connections", displayValue(node.connections)],
     [zh ? "节点 ID" : "Node ID", displayValue(node.id)],
-  ];
-  if (node.kind === "connection") return [
-    [zh ? "客户端" : "Client", `${displayValue(node.raw.clientHost)}:${displayValue(node.raw.clientPort)}`],
-    [zh ? "Runtime" : "Runtime", `${displayValue(node.raw.runtimeHost)}:${displayValue(node.raw.runtimePort)}`],
-    [zh ? "连接状态" : "Status", statusCopy(node.raw.status, language)],
-    [zh ? "连接时间" : "Connected at", formatTime(node.raw.connectionTime, language)],
-    [zh ? "连接 ID" : "Connection ID", displayValue(node.raw.id)],
-    [zh ? "说明" : "Description", displayValue(node.raw.description)],
   ];
   if (node.kind === "topic") return [
     [zh ? "主题名称" : "Topic", displayValue(node.raw.topicName)],
@@ -182,7 +227,7 @@ function toRuntimeItem(runtime, tone = "blue") {
   };
 }
 
-function buildComponents({ cluster, topology, runtimes, topics, groups, connections, language }) {
+function buildComponents({ cluster, topology, runtimes, topics, groups, language }) {
   const zh = language === "zh";
   const directRuntimes = directRuntimeNodes(topology, runtimes).map((runtime) => toRuntimeItem(runtime, "blue"));
   const related = relatedClusterNodes(topology);
@@ -204,16 +249,6 @@ function buildComponents({ cluster, topology, runtimes, topics, groups, connecti
   });
   const metadata = dependencies.filter((item) => String(item.clusterType ?? "").toUpperCase().includes("META"));
   const stores = dependencies.filter((item) => !String(item.clusterType ?? "").toUpperCase().includes("META"));
-  const accessNodes = connections.map((item, index) => ({
-    key: `connection-${item.id ?? index}`,
-    id: item.id ?? index,
-    kind: "connection",
-    title: item.clientHost ? `${item.clientHost}:${item.clientPort ?? "—"}` : `${zh ? "客户端连接" : "Connection"} ${index + 1}`,
-    subtitle: item.runtimeHost ? `→ ${item.runtimeHost}:${item.runtimePort ?? "—"}` : zh ? "Runtime 未返回" : "Runtime unavailable",
-    tone: "green",
-    status: item.status,
-    raw: item,
-  }));
   const topicNodes = topics.map((item, index) => ({
     key: `topic-${item.id ?? index}`,
     id: item.id ?? index,
@@ -245,18 +280,14 @@ function buildComponents({ cluster, topology, runtimes, topics, groups, connecti
     source: { ...cluster, kind: "eventmesh", nodes: directRuntimes },
     nodes: directRuntimes,
     metadata,
-    footer: [["Runtime", directRuntimes.length], [zh ? "主题" : "Topics", topics.length], [zh ? "连接" : "Connections", connections.length]],
+    footer: [["Runtime", directRuntimes.length], [zh ? "主题" : "Topics", topics.length], [zh ? "消费组" : "Groups", groups.length]],
   };
   const components = [eventMesh, ...metadata, ...stores];
-  if (accessNodes.length) components.push({
-    id: "access", kind: "access", title: zh ? "应用接入" : "Application access", subtitle: "Producers / Consumers", tone: "green", status: aggregateStatus(accessNodes), nodes: accessNodes,
-    footer: [[zh ? "连接" : "Connections", accessNodes.length], [zh ? "Runtime" : "Runtimes", new Set(connections.map((item) => item.runtimeId ?? `${item.runtimeHost}:${item.runtimePort}`)).size]],
-  });
   if (topicNodes.length || groupNodes.length) components.push({
     id: "resources", kind: "resource", title: zh ? "事件资源" : "Event resources", subtitle: "Topic / Consumer Group", tone: "orange", status: aggregateStatus([...topicNodes, ...groupNodes]), nodes: [...topicNodes, ...groupNodes],
     footer: [[zh ? "主题" : "Topics", topicNodes.length], [zh ? "消费组" : "Groups", groupNodes.length]],
   });
-  return { components, eventMesh, metadata, stores, access: components.find((item) => item.id === "access"), resources: components.find((item) => item.id === "resources") };
+  return { components, eventMesh, metadata, stores, resources: components.find((item) => item.id === "resources") };
 }
 
 function MiniNode({ item, onClick, selected, searchState = "" }) {
@@ -359,10 +390,8 @@ function GlobalStage({ model, language, query, onOpen }) {
   const [activeId, setActiveId] = useState(null);
   const matches = (component) => !query || `${component.title} ${component.subtitle} ${component.clusterType ?? ""}`.toLowerCase().includes(query.toLowerCase());
   return <div className="et-global-stage">
-    <GlobalFlowEdges stores={model.stores} activeId={activeId} hasAccess={Boolean(model.access)} hasResources={Boolean(model.resources)} />
-    <div className={`et-global-access ${model.access && matches(model.access) ? (query ? "search-hit" : "") : "muted"}`}>
-      {model.access ? <ClusterCard component={model.access} language={language} onOpen={onOpen} onHover={setActiveId} /> : <div className="et-optional-empty"><LinkOutlined /><span>{language === "zh" ? "暂无客户端连接" : "No client connections"}</span></div>}
-    </div>
+    <GlobalFlowEdges stores={model.stores} activeId={activeId} hasAccess={false} hasResources={Boolean(model.resources)} />
+    <div className="et-global-access" aria-hidden="true" />
     <div className={`et-global-core ${matches(model.eventMesh) ? (query ? "search-hit" : "") : "muted"}`}><EventMeshCard component={model.eventMesh} metadata={model.metadata} language={language} onOpen={onOpen} onHover={setActiveId} /></div>
     <div className={`et-global-resources ${model.resources && matches(model.resources) ? (query ? "search-hit" : "") : "muted"}`}>
       {model.resources ? <ClusterCard component={model.resources} language={language} onOpen={onOpen} onHover={setActiveId} /> : <div className="et-optional-empty"><AppstoreOutlined /><span>{language === "zh" ? "暂无事件资源" : "No event resources"}</span></div>}
@@ -397,28 +426,105 @@ function ComponentStage({ component, language, query, selectedKey, onSelect, onD
   </div>;
 }
 
-function Inspector({ node, language, onClose }) {
+function ResourceTreeTitle({ node, language }) {
+  return <span className={`et-tree-node status-${normalizedStatus(node.status)} ${node.virtual ? "virtual" : "real"}`}>
+    <span className="et-tree-node-icon">{iconFor(node.kind)}</span>
+    <span className="et-tree-node-copy"><strong title={node.title}>{node.title}</strong><small title={node.subtitle}>{node.subtitle || resourceKindCopy(node, language)}</small></span>
+    <span className="et-tree-node-meta">
+      <em>{node.virtual ? (language === "zh" ? "资源目录" : "Resource directory") : resourceKindCopy(node, language)}</em>
+      {!node.virtual && <StatusPill status={node.status} language={language} />}
+    </span>
+  </span>;
+}
+
+function ResourceTreeStage({ root, language, query, kind, status, selectedKey, onKindChange, onStatusChange, onSelect }) {
+  const [expandedKeys, setExpandedKeys] = useState([]);
+  const hasActiveFilter = Boolean(query.trim()) || kind !== "all" || status !== "all";
+  const allNodes = useMemo(() => flattenResourceTree(root), [root]);
+  const resourceCount = allNodes.filter((node) => !node.virtual).length;
+  const filtered = useMemo(() => hasActiveFilter ? filterResourceTree(root, { query, kind, status }) : {
+    tree: root,
+    matchCount: resourceCount,
+    expandedKeys: [],
+  }, [hasActiveFilter, kind, query, resourceCount, root, status]);
+  useEffect(() => {
+    if (!root) return;
+    setExpandedKeys([root.key, ...(root.children ?? []).filter((node) => node.virtual).map((node) => node.key)]);
+  }, [root]);
+  const visibleExpandedKeys = hasActiveFilter ? filtered.expandedKeys : expandedKeys;
+  return <div className="et-tree-stage">
+    <div className="et-tree-toolbar">
+      <div><strong>{language === "zh" ? "资源定位" : "Resource locator"}</strong><span>{hasActiveFilter ? (language === "zh" ? `${filtered.matchCount} 个匹配资源` : `${filtered.matchCount} matching resources`) : (language === "zh" ? `${resourceCount} 个可查询资源` : `${resourceCount} searchable resources`)}</span></div>
+      <Select size="small" value={kind} onChange={onKindChange} aria-label={language === "zh" ? "资源类型" : "Resource type"} options={[
+        { value: "all", label: language === "zh" ? "全部类型" : "All types" },
+        { value: "cluster", label: language === "zh" ? "集群" : "Clusters" },
+        { value: "runtime", label: "Runtime" },
+        { value: "topic", label: "Topic" },
+        { value: "consumer-group", label: language === "zh" ? "消费组" : "Consumer groups" },
+      ]} />
+      <Select size="small" value={status} onChange={onStatusChange} aria-label={language === "zh" ? "运行状态" : "Status"} options={[
+        { value: "all", label: language === "zh" ? "全部状态" : "All status" },
+        { value: "healthy", label: language === "zh" ? "正常" : "Healthy" },
+        { value: "warning", label: language === "zh" ? "警告" : "Warning" },
+        { value: "error", label: language === "zh" ? "异常" : "Abnormal" },
+        { value: "unknown", label: language === "zh" ? "未知" : "Unknown" },
+      ]} />
+      <div className="et-tree-expand-actions"><Button size="small" disabled={hasActiveFilter} onClick={() => setExpandedKeys(resourceTreeExpandedKeys(root))}>{language === "zh" ? "全部展开" : "Expand all"}</Button><Button size="small" disabled={hasActiveFilter} onClick={() => setExpandedKeys([root.key])}>{language === "zh" ? "全部收起" : "Collapse all"}</Button></div>
+    </div>
+    <div className="et-tree-content">
+      {filtered.tree ? <Tree
+        blockNode
+        showLine={{ showLeafIcon: false }}
+        virtual
+        height={520}
+        treeData={[filtered.tree]}
+        expandedKeys={visibleExpandedKeys}
+        selectedKeys={selectedKey ? [selectedKey] : []}
+        onExpand={(keys) => setExpandedKeys(keys)}
+        onSelect={(_, info) => onSelect(info.node)}
+        titleRender={(node) => <ResourceTreeTitle node={node} language={language} />}
+      /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={language === "zh" ? "没有符合条件的资源" : "No matching resources"} />}
+    </div>
+  </div>;
+}
+
+function Inspector({ node, language, onClose, path = [] }) {
   return <aside className={`et-inspector ${node ? "has-node" : ""}`}>
     <header><span><strong>{language === "zh" ? "节点详情" : "Node details"}</strong><small>{language === "zh" ? "运行状态、资源、流量和基础信息" : "Status, resources, traffic and identity"}</small></span><button type="button" aria-label={language === "zh" ? "关闭详情" : "Close details"} onClick={onClose}><CloseOutlined /></button></header>
     {!node ? <div className="et-inspector-empty"><span><SearchOutlined /></span><strong>{language === "zh" ? "选择一个节点" : "Select a node"}</strong><p>{language === "zh" ? "进入第二层组件后，点击 Runtime、Broker、连接、Topic 或消费组，即可查看真实资源字段。" : "Open a component, then select a Runtime, broker, connection, topic, or group to inspect live fields."}</p></div> : <div className="et-inspector-body">
-      <div className={`et-inspector-identity ${node.tone ?? "blue"}`}><span>{iconFor(node.kind)}</span><div><small>{node.kind}</small><strong>{node.title ?? node.name}</strong><StatusPill status={node.status ?? node.raw?.status ?? node.raw?.state} language={language} /></div></div>
+      <div className={`et-inspector-identity ${node.tone ?? "blue"}`}><span>{iconFor(node.kind)}</span><div><small>{node.kind}</small><strong>{node.title ?? node.name}</strong>{node.virtual ? <em className="et-directory-label">{language === "zh" ? "资源目录 · 非拓扑边" : "Resource directory · not a topology edge"}</em> : <StatusPill status={node.status ?? node.raw?.status ?? node.raw?.state} language={language} />}</div></div>
+      {!!path.length && <div className="et-inspector-path"><small>{language === "zh" ? "完整路径" : "Full path"}</small><span>{path.map((item, index) => <span key={item.key}>{index > 0 && <b>/</b>}<em>{item.title ?? item.name}</em></span>)}</span><strong>{relationCopy(node.relation, language)}</strong></div>}
       <dl>{rowsForNode(node, language).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
       <div className="et-data-note"><ApiOutlined /><span><strong>{language === "zh" ? "数据来源" : "Data source"}</strong><small>{language === "zh" ? "仅展示当前后端接口与数据库已返回的字段；CPU、内存、吞吐和延迟未返回时不生成演示值。" : "Only fields returned by the current backend are shown. Missing CPU, memory, throughput, and latency values are never fabricated."}</small></span></div>
     </div>}
   </aside>;
 }
 
-export function TopologyExperience({ cluster, topology, runtimes = [], topics = [], groups = [], connections = [], error, loading, fetching, fetchedAt, onRefresh, onExit }) {
+function graphLocationForTreeNode(model, treeNode) {
+  if (!treeNode || treeNode.relation === "ROOT") return { component: null, node: null };
+  if (["resources", "topics", "groups"].includes(treeNode.directoryType)) return { component: "resources", node: null };
+  const component = model.components.find((item) => item.id === treeNode.key || item.nodes.some((node) => node.key === treeNode.key));
+  if (!component) return { component: null, node: null };
+  return { component: component.id, node: component.nodes.some((node) => node.key === treeNode.key) ? treeNode.key : null };
+}
+
+export function TopologyExperience({ cluster, topology, runtimes = [], topics = [], groups = [], error, loading, fetching, fetchedAt, onRefresh, onExit }) {
   const { language } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const demoTimers = useRef([]);
   const [demoRunning, setDemoRunning] = useState(false);
-  const model = useMemo(() => buildComponents({ cluster, topology, runtimes, topics, groups, connections, language }), [cluster, connections, groups, language, runtimes, topics, topology]);
+  const model = useMemo(() => buildComponents({ cluster, topology, runtimes, topics, groups, language }), [cluster, groups, language, runtimes, topics, topology]);
+  const treeRoot = useMemo(() => buildResourceTree({ cluster, topology, runtimes, topics, groups, language }), [cluster, groups, language, runtimes, topics, topology]);
+  const mode = searchParams.get("mode") === "tree" ? "tree" : "graph";
   const componentId = searchParams.get("component");
   const nodeKey = searchParams.get("node");
   const query = searchParams.get("q") ?? "";
+  const resourceKind = searchParams.get("kind") ?? "all";
+  const resourceStatus = searchParams.get("status") ?? "all";
   const currentComponent = model.components.find((item) => item.id === componentId) ?? null;
   const selectedNode = currentComponent?.nodes.find((item) => item.key === nodeKey) ?? null;
+  const selectedTreeNode = findResourceNode(treeRoot, nodeKey) ?? treeRoot;
+  const treePath = (selectedTreeNode?.pathKeys ?? []).map((key) => findResourceNode(treeRoot, key)).filter(Boolean);
   const componentNodes = model.components.flatMap((item) => item.nodes);
   const warningCount = componentNodes.filter((node) => normalizedStatus(node.status ?? node.raw?.status ?? node.raw?.state) === "warning").length;
   const errorCount = componentNodes.filter((node) => normalizedStatus(node.status ?? node.raw?.status ?? node.raw?.state) === "error").length;
@@ -433,12 +539,26 @@ export function TopologyExperience({ cluster, topology, runtimes = [], topics = 
   };
   const openComponent = (id) => updateParams({ component: id, node: null, q: null });
   const selectNode = (node) => updateParams({ node: node.key });
+  const switchMode = (nextMode) => {
+    stopDemo();
+    if (nextMode === "tree") {
+      updateParams({ mode: "tree", node: selectedNode?.key ?? nodeKey });
+      return;
+    }
+    const target = graphLocationForTreeNode(model, selectedTreeNode);
+    updateParams({ mode: null, kind: null, status: null, component: target.component, node: target.node });
+  };
   const goBack = () => {
+    if (mode === "tree") {
+      if (selectedTreeNode?.parentKey) updateParams({ node: selectedTreeNode.parentKey });
+      else onExit();
+      return;
+    }
     if (selectedNode) updateParams({ node: null });
     else if (currentComponent) updateParams({ component: null, node: null });
     else onExit();
   };
-  const goGlobal = () => updateParams({ component: null, node: null, q: null });
+  const goGlobal = () => updateParams({ component: null, node: mode === "tree" ? treeRoot.key : null, q: null });
   const stopDemo = () => {
     demoTimers.current.forEach((timer) => window.clearTimeout(timer));
     demoTimers.current = [];
@@ -468,27 +588,29 @@ export function TopologyExperience({ cluster, topology, runtimes = [], topics = 
       <span className="et-updated">{language === "zh" ? "更新于" : "Updated"} {formatTime(fetchedAt, language)}</span>
     </header>
     <div className="et-commandbar">
-      <button type="button" className="et-back" onClick={goBack}>← <span>{language === "zh" ? "返回" : "Back"}</span></button>
+      <div className="et-command-leading"><button type="button" className="et-back" onClick={goBack}>← <span>{language === "zh" ? "返回" : "Back"}</span></button><div className="et-view-switch" role="group" aria-label={language === "zh" ? "拓扑视图" : "Topology view"}><button type="button" className={mode === "graph" ? "active" : ""} aria-pressed={mode === "graph"} onClick={() => switchMode("graph")}><ApartmentOutlined />{language === "zh" ? "关系图" : "Graph"}</button><button type="button" className={mode === "tree" ? "active" : ""} aria-pressed={mode === "tree"} onClick={() => switchMode("tree")}><UnorderedListOutlined />{language === "zh" ? "资源树" : "Resource tree"}</button></div></div>
       <nav className="et-breadcrumb" aria-label={language === "zh" ? "拓扑路径" : "Topology path"}>
-        <button type="button" className={!currentComponent ? "current" : ""} onClick={goGlobal} disabled={!currentComponent}>{language === "zh" ? "全局拓扑" : "Global topology"}</button>
-        {currentComponent && <><span>/</span><button type="button" className={!selectedNode ? "current" : ""} onClick={() => updateParams({ node: null })} disabled={!selectedNode}>{currentComponent.title}</button></>}
-        {selectedNode && <><span>/</span><strong>{selectedNode.title}</strong></>}
+        {mode === "tree" ? treePath.map((item, index) => <span className="et-tree-crumb" key={item.key}>{index > 0 && <b>/</b>}<button type="button" className={index === treePath.length - 1 ? "current" : ""} onClick={() => updateParams({ node: item.key })} disabled={index === treePath.length - 1}>{item.title}</button></span>) : <>
+          <button type="button" className={!currentComponent ? "current" : ""} onClick={goGlobal} disabled={!currentComponent}>{language === "zh" ? "全局拓扑" : "Global topology"}</button>
+          {currentComponent && <><span>/</span><button type="button" className={!selectedNode ? "current" : ""} onClick={() => updateParams({ node: null })} disabled={!selectedNode}>{currentComponent.title}</button></>}
+          {selectedNode && <><span>/</span><strong>{selectedNode.title}</strong></>}
+        </>}
       </nav>
-      <ol className="et-steps"><li className={step === 1 ? "active" : "done"}><i>1</i><span>{language === "zh" ? "全局总览" : "Global"}</span></li><li className={step === 2 ? "active" : step > 2 ? "done" : ""}><i>2</i><span>{language === "zh" ? "集群组件" : "Component"}</span></li><li className={step === 3 ? "active" : ""}><i>3</i><span>{language === "zh" ? "节点实例" : "Instance"}</span></li></ol>
-      <label className="et-search"><SearchOutlined /><input value={query} onChange={(event) => updateParams({ q: event.target.value })} placeholder={language === "zh" ? "搜索节点 / 集群" : "Search nodes / clusters"} /></label>
+      {mode === "tree" ? <div className="et-tree-command-summary"><FolderOpenOutlined /><span><strong>{language === "zh" ? "资源树" : "Resource tree"}</strong><small>{language === "zh" ? "关系与资源目录" : "Relationships and resource directories"}</small></span></div> : <ol className="et-steps"><li className={step === 1 ? "active" : "done"}><i>1</i><span>{language === "zh" ? "全局总览" : "Global"}</span></li><li className={step === 2 ? "active" : step > 2 ? "done" : ""}><i>2</i><span>{language === "zh" ? "集群组件" : "Component"}</span></li><li className={step === 3 ? "active" : ""}><i>3</i><span>{language === "zh" ? "节点实例" : "Instance"}</span></li></ol>}
+      <label className="et-search"><SearchOutlined /><input value={query} onChange={(event) => updateParams({ q: event.target.value })} placeholder={mode === "tree" ? (language === "zh" ? "搜索名称 / ID / 类型 / 地址" : "Search name / ID / type / address") : (language === "zh" ? "搜索节点 / 集群" : "Search nodes / clusters")} /></label>
       <button type="button" className="et-refresh" onClick={onRefresh}><ReloadOutlined spin={fetching} />{language === "zh" ? "刷新数据" : "Refresh"}</button>
     </div>
     <main className="et-workbench">
       <section className="et-main-panel">
-        <header className="et-panel-heading"><div><h1>{currentComponent?.title ?? (language === "zh" ? "全局拓扑" : "Global topology")}</h1><p>{currentComponent ? (language === "zh" ? "查看组件内部集群，选择节点后在右侧检查资源数据" : "Inspect the internal cluster and select a node for resource data") : (language === "zh" ? "先看系统边界：应用如何接入、EventMesh 如何转发、事件最终流向哪里" : "Understand system boundaries, EventMesh routing, and event destinations")}</p></div><div><button type="button" className="et-demo" onClick={playDemo}>{demoRunning ? "■" : "▶"} {language === "zh" ? (demoRunning ? "停止演示" : "演示下钻") : (demoRunning ? "Stop demo" : "Demo drill-down")}</button><button type="button" onClick={goGlobal}>⌂ {language === "zh" ? "回到全局" : "Global"}</button></div></header>
-        <div className="et-legend"><span><b>{language === "zh" ? "状态" : "Status"}</b></span><StatusLegendItem status="Healthy" language={language} /><StatusLegendItem status="Warning" language={language} /><StatusLegendItem status="Error" language={language} /><StatusLegendItem status="Unknown" language={language} /><em>{language === "zh" ? "点击集群卡片逐层进入；点击节点查看右侧详情" : "Open cluster cards, then select nodes for details"}</em></div>
-        {error && <Alert className="et-api-alert" type="warning" showIcon message={language === "zh" ? "部分拓扑关系暂不可用" : "Some topology relationships are unavailable"} description={error} />}
-        <div className="et-canvas-scroll">
-          {loading ? <div className="et-loading"><Spin size="large" /><span>{language === "zh" ? "正在读取拓扑数据" : "Loading topology data"}</span></div> : currentComponent ? <ComponentStage component={currentComponent} language={language} query={query} selectedKey={selectedNode?.key} onSelect={selectNode} onDrill={openComponent} /> : <GlobalStage model={model} language={language} query={query} onOpen={openComponent} />}
+        <header className="et-panel-heading"><div><h1>{mode === "tree" ? (language === "zh" ? "资源树" : "Resource tree") : currentComponent?.title ?? (language === "zh" ? "全局拓扑" : "Global topology")}</h1><p>{mode === "tree" ? (language === "zh" ? "按真实依赖和资源归属快速定位集群、Runtime 与消息资源" : "Locate clusters, Runtimes, and messaging resources by dependency and ownership") : currentComponent ? (language === "zh" ? "查看组件内部集群，选择节点后在右侧检查资源数据" : "Inspect the internal cluster and select a node for resource data") : (language === "zh" ? "先看系统边界：应用如何接入、EventMesh 如何转发、事件最终流向哪里" : "Understand system boundaries, EventMesh routing, and event destinations")}</p></div>{mode === "graph" && <div><button type="button" className="et-demo" onClick={playDemo}>{demoRunning ? "■" : "▶"} {language === "zh" ? (demoRunning ? "停止演示" : "演示下钻") : (demoRunning ? "Stop demo" : "Demo drill-down")}</button><button type="button" onClick={goGlobal}>⌂ {language === "zh" ? "回到全局" : "Global"}</button></div>}</header>
+        <div className={`et-legend ${mode === "tree" ? "tree" : ""}`}><span><b>{language === "zh" ? "状态" : "Status"}</b></span><StatusLegendItem status="Healthy" language={language} /><StatusLegendItem status="Warning" language={language} /><StatusLegendItem status="Error" language={language} /><StatusLegendItem status="Unknown" language={language} />{mode === "tree" ? <em><FolderOutlined /> {language === "zh" ? "资源目录仅用于定位，不代表真实拓扑边" : "Resource directories aid discovery and do not represent topology edges"}</em> : <em>{language === "zh" ? "点击集群卡片逐层进入；点击节点查看右侧详情" : "Open cluster cards, then select nodes for details"}</em>}</div>
+        {error && <Alert className="et-api-alert" type="warning" showIcon title={language === "zh" ? "部分拓扑关系暂不可用" : "Some topology relationships are unavailable"} description={error} />}
+        <div className={`et-canvas-scroll ${mode === "tree" ? "tree" : ""}`}>
+          {loading ? <div className="et-loading"><Spin size="large" /><span>{language === "zh" ? "正在读取拓扑数据" : "Loading topology data"}</span></div> : mode === "tree" ? <ResourceTreeStage root={treeRoot} language={language} query={query} kind={resourceKind} status={resourceStatus} selectedKey={selectedTreeNode?.key} onKindChange={(value) => updateParams({ kind: value === "all" ? null : value })} onStatusChange={(value) => updateParams({ status: value === "all" ? null : value })} onSelect={selectNode} /> : currentComponent ? <ComponentStage component={currentComponent} language={language} query={query} selectedKey={selectedNode?.key} onSelect={selectNode} onDrill={openComponent} /> : <GlobalStage model={model} language={language} query={query} onOpen={openComponent} />}
         </div>
-        <footer className="et-guidance"><InfoCircleOutlined /><span><strong>{language === "zh" ? "推荐交互：" : "Suggested flow: "}</strong>{language === "zh" ? "第一层看系统边界，第二层看集群组件，第三层看实例与运行字段。" : "See system boundaries first, cluster components second, and live instance fields third."}</span></footer>
+        <footer className="et-guidance"><InfoCircleOutlined /><span><strong>{language === "zh" ? "推荐交互：" : "Suggested flow: "}</strong>{mode === "tree" ? (language === "zh" ? "输入名称、ID、类型或地址定位资源；选择节点后查看完整路径与真实字段。" : "Search by name, ID, type, or address, then inspect the full path and live fields.") : (language === "zh" ? "第一层看系统边界，第二层看集群组件，第三层看实例与运行字段。" : "See system boundaries first, cluster components second, and live instance fields third.")}</span></footer>
       </section>
-      <Inspector node={selectedNode} language={language} onClose={() => updateParams({ node: null })} />
+      <Inspector node={mode === "tree" ? selectedTreeNode : selectedNode} language={language} path={mode === "tree" ? treePath : []} onClose={() => updateParams({ node: mode === "tree" ? treeRoot.key : null })} />
     </main>
   </div>;
 }
