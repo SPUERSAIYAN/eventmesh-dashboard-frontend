@@ -1,6 +1,8 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import "@fontsource-variable/space-grotesk";
+import "@fontsource-variable/geist-mono";
 import { App } from "./App.tsx";
 import { I18nProvider } from "./i18n.tsx";
 import "./styles.css";
@@ -8,6 +10,7 @@ import "./topology.css";
 import "./cluster-reference.css";
 import "./topology-experience.css";
 import "./alicloud-theme.css";
+import "./mock-cluster-experience.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

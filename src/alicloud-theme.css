@@ -1,8 +1,10 @@
 :root {
+  --font-sans: "Space Grotesk Variable", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --ali-orange: #225aa0;
   --ali-orange-soft: #edf4fb;
   --eventmesh-cyan: #4cb6d4;
-  --ali-ink: #203247;
+  --ali-ink: #1f1f1f;
   --ali-muted: #5f7388;
   --ali-subtle: #8495a9;
   --ali-line: #d4e1ef;
@@ -32,7 +34,26 @@ button,
 input,
 textarea,
 select {
-  font-family: Arial, "Helvetica Neue", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-sans);
+}
+
+code,
+kbd,
+samp,
+pre,
+.mock-detail-meta,
+.mock-copy-task-state,
+.mock-rate-kpis strong,
+.usage-row strong,
+.rate-cell,
+.local-time,
+.topology-node-copy em,
+.config-table code,
+.et-node-id,
+.et-node-meta,
+.et-inspector dd {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* EventMesh cloud-mist neutrals replace flat grays without competing with the
@@ -110,6 +131,16 @@ input:focus-visible,
 
 .app-shell.sidebar-collapsed {
   grid-template-columns: 72px minmax(0, 1fr);
+}
+
+.app-shell.inventory-home,
+.app-shell.inventory-home.sidebar-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.inventory-home .workspace,
+.inventory-home .statusbar {
+  grid-column: 1;
 }
 
 .topbar {
@@ -281,7 +312,9 @@ input:focus-visible,
   top: 60px;
   width: auto;
   height: calc(100vh - 60px);
-  overflow: hidden auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: #fff;
   border-right: 1px solid var(--ali-line);
   z-index: 20;
@@ -292,8 +325,12 @@ input:focus-visible,
 }
 
 .side-nav {
-  padding: 14px 0 72px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 14px 0;
   display: block;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .nav-section {
@@ -362,11 +399,11 @@ input:focus-visible,
 }
 
 .collapse-button {
-  position: absolute;
-  inset: auto 14px 14px;
+  position: static;
+  flex: 0 0 38px;
   width: calc(100% - 28px);
   height: 38px;
-  margin: 0;
+  margin: 0 14px 14px;
   padding: 0 8px;
   color: #666;
   background: #fff;
@@ -1441,6 +1478,13 @@ input:focus-visible,
   border-color: #777 !important;
 }
 
+.et-tree-command-summary strong,
+.et-tree-toolbar > div:first-child strong,
+.et-tree-node-copy strong,
+.et-inspector-path > span {
+  color: var(--ali-ink);
+}
+
 .et-stage-connectors .active,
 .et-store-single.active,
 .et-store-drop.active {
@@ -1472,6 +1516,11 @@ input:focus-visible,
   .app-shell,
   .app-shell.sidebar-collapsed {
     grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .app-shell.inventory-home,
+  .app-shell.inventory-home.sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .nav-section-label,
@@ -1532,6 +1581,15 @@ input:focus-visible,
   .app-shell.sidebar-collapsed {
     display: block;
     padding: 60px 0 60px;
+  }
+
+  .app-shell.inventory-home,
+  .app-shell.inventory-home.sidebar-collapsed {
+    padding-bottom: 30px;
+  }
+
+  .inventory-home .statusbar {
+    bottom: 0;
   }
 
   .topbar {
