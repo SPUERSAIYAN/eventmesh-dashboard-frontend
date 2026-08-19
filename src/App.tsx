@@ -8,7 +8,7 @@ import {
   SettingOutlined,
   BellOutlined, HomeOutlined, CheckCircleOutlined, ExclamationCircleOutlined,
   CloseCircleOutlined, QuestionCircleOutlined,
-  ApartmentOutlined, MessageOutlined, SafetyOutlined, SyncOutlined,
+  ApartmentOutlined, MessageOutlined, SafetyOutlined,
 } from "@ant-design/icons";
 import { Alert, App as AntApp, Button, ConfigProvider, Input, Modal, Pagination, Select, Spin, Tabs, Tag, Tooltip } from "antd";
 import enUS from "antd/locale/en_US";
@@ -51,10 +51,6 @@ const clusterScopedItems = [
   { key: "connections", label: "客户端连接", icon: LinkOutlined, children: [
     { key: "connections-overview", label: "概览", view: "connections" },
     { key: "connections-list", label: "连接列表", view: "connections", section: "list" },
-  ] },
-  { key: "replication", label: "Replication", icon: SyncOutlined, children: [
-    { key: "replication-overview", label: "概览", view: "replication" },
-    { key: "replication-relations", label: "复制关系", view: "replication", section: "relations" },
   ] },
   { key: "consumers", label: "Consumer", icon: TeamOutlined, view: "consumers" },
   { key: "operations", label: "Operations", icon: ToolOutlined, view: "operations" },
