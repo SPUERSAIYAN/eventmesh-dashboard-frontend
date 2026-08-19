@@ -250,7 +250,18 @@ function buildComponents({ cluster, topology, runtimes, topics, groups, language
     };
   });
   const metadata = dependencies.filter((item) => String(item.clusterType ?? "").toUpperCase().includes("META"));
-  const stores = dependencies.filter((item) => !String(item.clusterType ?? "").toUpperCase().includes("META"));
+  const runtimeDependencies = dependencies.filter((item) => String(item.clusterType ?? "").toUpperCase().includes("RUNTIME"));
+  const stores = dependencies.filter((item) => String(item.clusterType ?? "").toUpperCase().includes("STORAGE"));
+  const runtimePreview = directRuntimes.length ? directRuntimes : runtimeDependencies.map((item) => ({
+    key: item.id,
+    kind: "cluster",
+    title: item.title,
+    subtitle: `${item.nodes.length} ${zh ? "个 Runtime" : "runtimes"}`,
+    tone: item.tone,
+    status: item.status,
+    raw: item.source,
+  }));
+  const runtimeCount = directRuntimes.length || runtimeDependencies.reduce((sum, item) => sum + item.nodes.length, 0);
   const topicNodes = topics.map((item, index) => ({
     key: `topic-${item.id ?? index}`,
     id: item.id ?? index,
@@ -279,17 +290,18 @@ function buildComponents({ cluster, topology, runtimes, topics, groups, language
     tone: "blue",
     status: cluster.status,
     clusterType: cluster.clusterType,
-    source: { ...cluster, kind: "eventmesh", nodes: directRuntimes },
-    nodes: directRuntimes,
+    source: { ...cluster, kind: "eventmesh", nodes: runtimePreview },
+    nodes: runtimePreview,
     metadata,
-    footer: [["Runtime", directRuntimes.length], [zh ? "主题" : "Topics", topics.length], [zh ? "消费组" : "Groups", groups.length]],
+    runtimeDependencies,
+    footer: [["Runtime", runtimeCount], [zh ? "主题" : "Topics", topics.length], [zh ? "消费组" : "Groups", groups.length]],
   };
-  const components = [eventMesh, ...metadata, ...stores];
+  const components = [eventMesh, ...metadata, ...runtimeDependencies, ...stores];
   if (topicNodes.length || groupNodes.length) components.push({
     id: "resources", kind: "resource", title: zh ? "事件资源" : "Event resources", subtitle: "Topic / Consumer Group", tone: "orange", status: aggregateStatus([...topicNodes, ...groupNodes]), nodes: [...topicNodes, ...groupNodes],
     footer: [[zh ? "主题" : "Topics", topicNodes.length], [zh ? "消费组" : "Groups", groupNodes.length]],
   });
-  return { components, eventMesh, metadata, stores, resources: components.find((item) => item.id === "resources") };
+  return { components, eventMesh, metadata, runtimeDependencies, stores, resources: components.find((item) => item.id === "resources") };
 }
 
 function MiniNode({ item, onClick, selected, searchState = "" }) {
@@ -544,6 +556,7 @@ export function TopologyExperience({ cluster, topology, runtimes = [], topics = 
   const errorCount = componentNodes.filter((node) => normalizedStatus(node.status ?? node.raw?.status ?? node.raw?.state) === "error").length;
   const allNodes = componentNodes.length;
   const healthyNodes = componentNodes.filter((node) => normalizedStatus(node.status ?? node.raw?.status ?? node.raw?.state) === "healthy").length;
+  const runtimeCount = runtimes.length || model.runtimeDependencies.reduce((sum, item) => sum + item.nodes.length, 0);
   const updateParams = (changes) => {
     setSearchParams((previous) => {
       const next = new URLSearchParams(previous);
@@ -623,7 +636,7 @@ export function TopologyExperience({ cluster, topology, runtimes = [], topics = 
     <header className="et-topbar">
       <div className="et-brand"><span><img src={eventMeshLogo} alt="EventMesh" /></span><div><strong>EventMesh {language === "zh" ? "集群图" : "Cluster Graph"}</strong><small>Cluster topology &amp; observability dashboard</small></div></div>
       <span className="et-environment"><i />{cluster.region && cluster.region !== "—" ? cluster.region : (language === "zh" ? "当前环境" : "Current environment")}</span>
-      <div className="et-kpis"><div><small>{language === "zh" ? "正常节点" : "Healthy nodes"}</small><strong>{healthyNodes} / {allNodes}</strong></div><div><small>{language === "zh" ? "警告 / 异常" : "Warning / abnormal"}</small><strong className={errorCount ? "error" : warningCount ? "warning" : ""}>{warningCount} / {errorCount}</strong></div><div><small>Runtime</small><strong>{runtimes.length}</strong></div><div><small>Topics</small><strong>{topics.length}</strong></div></div>
+      <div className="et-kpis"><div><small>{language === "zh" ? "正常节点" : "Healthy nodes"}</small><strong>{healthyNodes} / {allNodes}</strong></div><div><small>{language === "zh" ? "警告 / 异常" : "Warning / abnormal"}</small><strong className={errorCount ? "error" : warningCount ? "warning" : ""}>{warningCount} / {errorCount}</strong></div><div><small>Runtime</small><strong>{runtimeCount}</strong></div><div><small>Topics</small><strong>{topics.length}</strong></div></div>
       <span className="et-updated">{language === "zh" ? "更新于" : "Updated"} {formatTime(fetchedAt, language)}</span>
     </header>
     <div className="et-commandbar">

@@ -11,6 +11,7 @@ import "./cluster-reference.css";
 import "./topology-experience.css";
 import "./alicloud-theme.css";
 import "./mock-cluster-experience.css";
+import "./storage-cluster-console.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

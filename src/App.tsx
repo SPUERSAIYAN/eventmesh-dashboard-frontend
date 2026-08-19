@@ -3,7 +3,7 @@ import {
   ApiOutlined, AppstoreOutlined, CheckCircleFilled, CloudServerOutlined,
   ClusterOutlined, CopyOutlined, DashboardOutlined, DatabaseOutlined,
   DownOutlined, ExclamationCircleFilled, InfoCircleFilled,
-  LinkOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
+  HddOutlined, LinkOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
   ReloadOutlined, SearchOutlined, TeamOutlined, ToolOutlined, GlobalOutlined, PlusOutlined,
   SettingOutlined,
   BellOutlined, HomeOutlined, CheckCircleOutlined, ExclamationCircleOutlined,
@@ -26,6 +26,8 @@ import { TopologyExperience } from "./TopologyExperience.tsx";
 import { useI18n } from "./i18n.tsx";
 import { clusterResourcePath, normalizeClusterView } from "./routes.ts";
 import { MockClusterDetail, MockClusterOverview } from "./MockClusterExperience.tsx";
+import { MockStorageClusterConsole } from "./StorageClusterConsole.tsx";
+import { MockComponentClusterConsole } from "./ComponentClusterConsole.tsx";
 
 const navSections = [
   { key: "resources", label: "Resource management", items: [
@@ -35,14 +37,28 @@ const navSections = [
 
 const navItems = navSections.flatMap((section) => section.items);
 const clusterScopedItems = [
-  { key: "cluster", label: "Cluster", icon: ClusterOutlined, children: [
+  { key: "cluster-summary", label: "概览", icon: DashboardOutlined, view: "summary" },
+  { key: "eventmesh", label: "EventMesh 集群", icon: ClusterOutlined, children: [
     { key: "cluster-overview", label: "概要", view: "overview" },
     { key: "cluster-topology", label: "集群拓扑", view: "topology" },
+    { key: "cluster-relations", label: "被关联列表", view: "relations" },
   ] },
-  { key: "runtime", label: "Runtime / Broker", icon: CloudServerOutlined, children: [
-    { key: "runtime-overview", label: "概览", view: "runtime" },
-    { key: "runtime-nodes", label: "Runtime 节点", view: "runtime", section: "runtime" },
-    { key: "meta-nodes", label: "Meta 节点", view: "runtime", section: "meta" },
+  { key: "runtime", label: "Runtime 集群", icon: CloudServerOutlined, children: [
+    { key: "runtime-overview", label: "概要", view: "runtime", section: "overview" },
+    { key: "runtime-clusters", label: "集群列表", view: "runtime", section: "clusters" },
+    { key: "runtime-nodes", label: "Runtime 列表", view: "runtime", section: "runtimes" },
+    { key: "runtime-relations", label: "被关联列表", view: "runtime", section: "relations" },
+  ] },
+  { key: "meta", label: "Meta 集群", icon: DatabaseOutlined, children: [
+    { key: "meta-overview", label: "概要", view: "meta", section: "overview" },
+    { key: "meta-clusters", label: "集群列表", view: "meta", section: "clusters" },
+    { key: "meta-relations", label: "被关联列表", view: "meta", section: "relations" },
+  ] },
+  { key: "storage", label: "存储集群", icon: HddOutlined, children: [
+    { key: "storage-overview", label: "概要", view: "storage", section: "overview" },
+    { key: "storage-kafka", label: "Kafka 集群", view: "storage", section: "kafka" },
+    { key: "storage-rocketmq", label: "RocketMQ 集群", view: "storage", section: "rocketmq" },
+    { key: "storage-relations", label: "被关联列表", view: "storage", section: "relations" },
   ] },
   { key: "topics", label: "Topics", icon: AppstoreOutlined, children: [
     { key: "topics-overview", label: "概览", view: "topics" },
@@ -64,20 +80,22 @@ function Shell({ children }) {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
-  const [expandedClusterGroups, setExpandedClusterGroups] = useState(() => new Set(["cluster", "runtime", "topics"]));
+  const [expandedClusterGroups, setExpandedClusterGroups] = useState(() => new Set(["eventmesh", "runtime", "meta", "storage"]));
   const pathParts = location.pathname.split("/").filter(Boolean);
   const activeKey = pathParts[0] || "clusters";
   const activeItem = navItems.find((item) => item.key === activeKey) ?? navItems[0];
   const isClusterDetail = activeKey === "clusters" && location.pathname !== "/clusters";
   const detailLabel = decodeURIComponent(pathParts[1] || "");
   const detailView = pathParts[2] || "overview";
-  const detailSection = new URLSearchParams(location.search).get("section") || "";
+  const nestedStorageSection = detailView === "storage" && ["kafka", "rocketmq"].includes(pathParts[3]) ? pathParts[3] : null;
+  const nestedComponentSection = ["runtime", "meta"].includes(detailView) && pathParts[3] ? "clusters" : null;
+  const detailSection = nestedStorageSection || nestedComponentSection || new URLSearchParams(location.search).get("section") || "overview";
   const toggleClusterGroup = (key) => setExpandedClusterGroups((current) => {
     const next = new Set(current);
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
   });
-  const openClusterChild = (child) => navigate(`/clusters/${encodeURIComponent(detailLabel)}/${child.view}${child.section ? `?section=${child.section}` : ""}`);
+  const openClusterChild = (child) => navigate(`/clusters/${encodeURIComponent(detailLabel)}/${child.view}${child.section && child.section !== "overview" ? `?section=${child.section}` : ""}`);
   useEffect(() => {
     document.querySelector(".workspace")?.scrollTo({ top: 0, left: 0 });
   }, [location.pathname]);
@@ -90,7 +108,7 @@ function Shell({ children }) {
       {isClusterDetail && <aside className="sidebar">
         <button className="brand" aria-label={t("EventMesh home")} onClick={() => navigate("/clusters")}><img src={eventMeshLogo} alt="EventMesh" /></button>
         <nav className="side-nav" aria-label={t("Primary navigation")}>
-          {isClusterDetail ? <section className="nav-section cluster-scoped-nav"><span className="nav-section-label">{detailLabel}</span>{clusterScopedItems.map((group)=>{const Icon=group.icon;const children=group.children??[];const groupActive=children.length?children.some((child)=>child.view===detailView):group.view===detailView;const expanded=expandedClusterGroups.has(group.key);return <div className={`cluster-nav-group ${groupActive?"group-active":""}`} key={group.key}><Tooltip placement="right" title={collapsed?t(group.label):""}><button className="cluster-nav-parent" aria-expanded={children.length?expanded:undefined} onClick={()=>{if(children.length){if(collapsed||window.innerWidth<=760)openClusterChild(children[0]);else toggleClusterGroup(group.key);}else navigate(`/clusters/${encodeURIComponent(detailLabel)}/${group.view}`);}}><Icon/><span>{t(group.label)}</span>{children.length>0&&<DownOutlined className={`cluster-nav-arrow ${expanded?"expanded":""}`}/>}</button></Tooltip>{children.length>0&&expanded&&<div className="cluster-nav-children">{children.map((child)=>{const childActive=child.view===detailView&&(child.section?child.section===detailSection:!detailSection);return <button key={child.key} className={childActive?"active":""} onClick={()=>openClusterChild(child)}><span>{t(child.label)}</span></button>;})}</div>}</div>;})}</section> : navSections.map((section) => <section className="nav-section" key={section.key}>
+          {isClusterDetail ? <section className="nav-section cluster-scoped-nav"><span className="nav-section-label">{detailLabel}</span>{clusterScopedItems.map((group)=>{const Icon=group.icon;const children=group.children??[];const groupActive=children.length?children.some((child)=>child.view===detailView):group.view===detailView;const expanded=expandedClusterGroups.has(group.key);return <div className={`cluster-nav-group ${groupActive?"group-active":""}`} key={group.key}><Tooltip placement="right" title={collapsed?t(group.label):""}><button className="cluster-nav-parent" aria-expanded={children.length?expanded:undefined} onClick={()=>{if(children.length){if(collapsed||window.innerWidth<=760)openClusterChild(children[0]);else toggleClusterGroup(group.key);}else navigate(`/clusters/${encodeURIComponent(detailLabel)}/${group.view}`);}}><Icon/><span>{t(group.label)}</span>{children.length>0&&<DownOutlined className={`cluster-nav-arrow ${expanded?"expanded":""}`}/>}</button></Tooltip>{children.length>0&&expanded&&<div className="cluster-nav-children">{children.map((child)=>{const childSection=child.section??"overview";const childActive=child.view===detailView&&childSection===detailSection;return <button key={child.key} className={childActive?"active":""} onClick={()=>openClusterChild(child)}><span>{t(child.label)}</span></button>;})}</div>}</div>;})}</section> : navSections.map((section) => <section className="nav-section" key={section.key}>
             <span className="nav-section-label">{t(section.label)}</span>
             {section.items.map(({ key, label, icon: Icon, path }) => {
               return <Tooltip key={key} placement="right" title={collapsed ? t(label) : ""}>
@@ -618,5 +636,5 @@ function ChangeItem({ item }) {
 
 export function App() {
   const { language } = useI18n();
-  return <ConfigProvider locale={language === "zh" ? zhCN : enUS} theme={{ token: { colorPrimary: "#225aa0", colorInfo: "#225aa0", colorSuccess: "#2c7568", colorWarning: "#9a5b00", colorError: "#a9433c", colorText: "#1f1f1f", colorTextSecondary: "#5f7388", colorBorder: "#d4e1ef", borderRadius: 3, fontFamily: "'Space Grotesk Variable', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif" }, components: { Button: { controlHeight: 36, fontWeight: 500, borderRadius: 2 }, Input: { controlHeight: 36 }, Select: { controlHeight: 36 }, Modal: { titleFontSize: 18 } } }}><AntApp><BrowserRouter><Shell><Routes><Route path="/overview" element={<Navigate to="/clusters" replace />} /><Route path="/clusters" element={<MockClusterOverview />} /><Route path="/clusters/:clusterId" element={<MockClusterDetail />} /><Route path="/clusters/:clusterId/:view" element={<MockClusterDetail />} /><Route path="/topics" element={<Navigate to="/clusters" replace />} /><Route path="/groups" element={<Navigate to="/clusters" replace />} /><Route path="/operations" element={<Navigate to="/clusters" replace />} /><Route path="*" element={<Navigate to="/clusters" replace />} /></Routes></Shell></BrowserRouter></AntApp></ConfigProvider>;
+  return <ConfigProvider locale={language === "zh" ? zhCN : enUS} theme={{ token: { colorPrimary: "#225aa0", colorInfo: "#225aa0", colorSuccess: "#2c7568", colorWarning: "#9a5b00", colorError: "#a9433c", colorText: "#1f1f1f", colorTextSecondary: "#5f7388", colorBorder: "#d4e1ef", borderRadius: 3, fontFamily: "'Space Grotesk Variable', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif" }, components: { Button: { controlHeight: 36, fontWeight: 500, borderRadius: 2 }, Input: { controlHeight: 36 }, Select: { controlHeight: 36 }, Modal: { titleFontSize: 18 } } }}><AntApp><BrowserRouter><Shell><Routes><Route path="/overview" element={<Navigate to="/clusters" replace />} /><Route path="/clusters" element={<MockClusterOverview />} /><Route path="/clusters/:clusterId" element={<MockClusterDetail />} /><Route path="/clusters/:clusterId/storage/:engine/:storageClusterId/:panel?" element={<MockStorageClusterConsole />} /><Route path="/clusters/:clusterId/:componentType/:componentClusterId/:panel?" element={<MockComponentClusterConsole />} /><Route path="/clusters/:clusterId/:view" element={<MockClusterDetail />} /><Route path="/topics" element={<Navigate to="/clusters" replace />} /><Route path="/groups" element={<Navigate to="/clusters" replace />} /><Route path="/operations" element={<Navigate to="/clusters" replace />} /><Route path="*" element={<Navigate to="/clusters" replace />} /></Routes></Shell></BrowserRouter></AntApp></ConfigProvider>;
 }
