@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EventMesh 集群图 Dashboard Demo</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --text: #172033;
+      --muted: #667085;
+      --line: #dbe3ef;
+      --blue: #2563eb;
+      --green: #16a34a;
+      --orange: #ea580c;
+      --purple: #7c3aed;
+      --cyan: #0891b2;
+      --amber: #d97706;
+      --red: #dc2626;
+      --gray: #98a2b3;
+      --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 1120px;
+      background:
+        radial-gradient(circle at 10% -10%, rgba(37, 99, 235, 0.08), transparent 28%),
+        radial-gradient(circle at 105% 0%, rgba(124, 58, 237, 0.07), transparent 25%),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input { font: inherit; }
+
+    .app-shell { min-height: 100vh; }
+
+    .topbar {
+      height: 76px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 0 28px;
+      background: rgba(255, 255, 255, 0.94);
+      border-bottom: 1px solid #e8edf5;
+      box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(10px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 300px;
+    }
+
+    .brand-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(145deg, #1d4ed8, #3b82f6 65%, #60a5fa);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 8px 20px rgba(37, 99, 235, 0.28);
+    }
+
+    .brand-mark svg { width: 25px; height: 25px; }
+    .brand h1 { margin: 0; font-size: 20px; letter-spacing: 0.2px; }
+    .brand p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+
+    .env-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: #ecfdf3;
+      color: #087a36;
+      border: 1px solid #b7efca;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .env-pill::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #16a34a;
+      box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12);
+    }
+
+    .top-stats {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .top-stat {
+      min-width: 112px;
+      padding: 8px 12px;
+      border: 1px solid #e6ebf2;
+      background: #fff;
+      border-radius: 12px;
+    }
+
+    .top-stat span { display: block; color: var(--muted); font-size: 11px; }
+    .top-stat strong { display: block; margin-top: 2px; font-size: 16px; }
+    .top-stat.warning strong { color: var(--amber); }
+
+    .updated {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      margin-left: 6px;
+    }
+
+    main { padding: 20px 24px 28px; }
+
+    .toolbar {
+      min-height: 62px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid #e4eaf2;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+      margin-bottom: 16px;
+    }
+
+    .tool-btn {
+      height: 38px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 13px;
+      border: 1px solid #d7deea;
+      border-radius: 10px;
+      background: #fff;
+      color: #344054;
+      cursor: pointer;
+      transition: 0.18s ease;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .tool-btn:hover { border-color: #9db8ff; color: var(--blue); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08); }
+    .tool-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+    .tool-btn.primary { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 370px;
+      overflow: hidden;
+    }
+
+    .crumb {
+      border: 0;
+      background: transparent;
+      color: #475467;
+      cursor: pointer;
+      padding: 6px 5px;
+      border-radius: 7px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .crumb:hover { background: #f2f4f7; color: var(--blue); }
+    .crumb.current { color: #101828; cursor: default; }
+    .crumb-sep { color: #b4becd; }
+
+    .stepper {
+      display: flex;
+      align-items: center;
+      margin-left: 6px;
+      min-width: 330px;
+    }
+
+    .step {
+      display: flex;
+      align-items: center;
+      color: #98a2b3;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .step:not(:last-child)::after {
+      content: "";
+      width: 40px;
+      height: 2px;
+      margin: 0 8px;
+      background: #e4e7ec;
+    }
+
+    .step-index {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      border: 1px solid #d0d5dd;
+      background: #fff;
+      margin-right: 6px;
+      font-size: 11px;
+    }
+
+    .step.done, .step.active { color: #1d4ed8; }
+    .step.done .step-index, .step.active .step-index { border-color: #93b4ff; background: #eaf1ff; color: #1d4ed8; }
+    .step.done:not(:last-child)::after { background: #93b4ff; }
+
+    .toolbar-spacer { flex: 1; }
+
+    .search-box {
+      width: 230px;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 11px;
+      border: 1px solid #d7deea;
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    .search-box svg { width: 17px; height: 17px; color: #98a2b3; }
+    .search-box input { width: 100%; border: 0; outline: 0; color: #344054; background: transparent; font-size: 13px; }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 330px;
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .topology-panel, .inspector {
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid #e3e9f2;
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 18px;
+      border-bottom: 1px solid #edf1f6;
+      background: linear-gradient(180deg, #fff, #fbfcfe);
+    }
+
+    .panel-title-wrap { min-width: 0; }
+    .panel-title-wrap h2 { margin: 0; font-size: 18px; }
+    .panel-title-wrap p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .panel-head-actions { margin-left: auto; display: flex; gap: 8px; }
+
+    .legend {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 0 18px;
+      border-bottom: 1px solid #edf1f6;
+      color: #667085;
+      font-size: 12px;
+      background: #fcfdff;
+    }
+
+    .legend strong { color: #344054; margin-right: 2px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .legend-dot.healthy { background: var(--green); box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.10); }
+    .legend-dot.warning { background: var(--amber); box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.10); }
+    .legend-dot.error { background: var(--red); box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.10); }
+    .legend-dot.unknown { background: var(--gray); box-shadow: 0 0 0 4px rgba(152, 162, 179, 0.12); }
+
+    .stage-scroll {
+      overflow: auto;
+      background:
+        linear-gradient(#fff 23px, transparent 24px),
+        linear-gradient(90deg, rgba(224, 231, 242, 0.35) 1px, transparent 1px),
+        linear-gradient(rgba(224, 231, 242, 0.35) 1px, transparent 1px),
+        #fbfcff;
+      background-size: 100% 24px, 24px 24px, 24px 24px, auto;
+      min-height: 710px;
+    }
+
+    .stage {
+      width: 1180px;
+      min-height: 690px;
+      position: relative;
+      margin: 0 auto;
+      transition: height 0.25s ease;
+    }
+
+    #edgeLayer {
+      position: absolute;
+      inset: 0;
+      width: 1180px;
+      height: 100%;
+      z-index: 1;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    #nodeLayer { position: absolute; inset: 0; z-index: 2; }
+
+    .topology-node {
+      --accent: #2563eb;
+      --soft: #eff6ff;
+      --border: #bfdbfe;
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.94));
+      border: 1px solid var(--border);
+      border-top: 4px solid var(--accent);
+      border-radius: 16px;
+      box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+      overflow: hidden;
+      cursor: pointer;
+      transform: translateZ(0);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, border-color 0.18s ease;
+      animation: nodeIn 0.24s ease both;
+    }
+
+    .topology-node:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 16px 34px rgba(15, 23, 42, 0.13);
+      border-color: color-mix(in srgb, var(--accent) 45%, #ffffff);
+      z-index: 5;
+    }
+
+    .topology-node.highlight {
+      box-shadow: 0 18px 42px rgba(37, 99, 235, 0.18);
+      border-width: 2px;
+      border-top-width: 5px;
+    }
+
+    .topology-node.selected {
+      outline: 3px solid color-mix(in srgb, var(--accent) 22%, transparent);
+      box-shadow: 0 16px 40px color-mix(in srgb, var(--accent) 19%, transparent);
+    }
+
+    .topology-node.search-dim { opacity: 0.24; filter: grayscale(0.6); }
+    .topology-node.search-hit { outline: 3px solid rgba(250, 204, 21, 0.42); }
+
+    .node-head {
+      min-height: 66px;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 12px 14px 10px;
+      background: linear-gradient(180deg, var(--soft), rgba(255,255,255,0.75));
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 64%, #ffffff);
+    }
+
+    .node-icon {
+      width: 38px;
+      height: 38px;
+      flex: 0 0 38px;
+      display: grid;
+      place-items: center;
+      border-radius: 11px;
+      background: #fff;
+      color: var(--accent);
+      border: 1px solid var(--border);
+      box-shadow: 0 5px 14px rgba(15, 23, 42, 0.05);
+    }
+
+    .node-icon svg { width: 23px; height: 23px; }
+    .node-title { min-width: 0; flex: 1; }
+    .node-title strong { display: block; font-size: 15px; line-height: 1.25; color: #172033; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .node-title span { display: block; margin-top: 3px; font-size: 11px; color: #667085; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 800;
+      white-space: nowrap;
+      background: #f2f4f7;
+      color: #475467;
+    }
+
+    .status-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--gray); }
+    .status-pill.healthy { background: #ecfdf3; color: #087a36; }
+    .status-pill.healthy i { background: var(--green); }
+    .status-pill.warning { background: #fffaeb; color: #b54708; }
+    .status-pill.warning i { background: var(--amber); }
+    .status-pill.error { background: #fef3f2; color: #b42318; }
+    .status-pill.error i { background: var(--red); }
+    .status-pill.unknown { background: #f2f4f7; color: #667085; }
+
+    .node-body {
+      flex: 1;
+      min-height: 0;
+      padding: 12px 14px;
+      overflow: hidden;
+    }
+
+    .node-footer {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-top: 1px solid #eef2f6;
+      background: #fcfdff;
+      font-size: 11px;
+    }
+
+    .node-footer .metric { min-width: 0; }
+    .node-footer .metric span { color: #98a2b3; margin-right: 4px; }
+    .node-footer .metric strong { color: #344054; }
+    .drill-hint { margin-left: auto; color: var(--accent); font-weight: 800; white-space: nowrap; }
+
+    .tag-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .tag-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 38px;
+      padding: 8px 9px;
+      border: 1px solid #edf0f4;
+      border-radius: 10px;
+      background: #fff;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .tag-item::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 3px;
+      background: var(--accent);
+      opacity: 0.82;
+    }
+
+    .core-layout { display: grid; grid-template-rows: 84px 1fr; gap: 10px; height: 100%; }
+    .core-box { border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--soft) 55%, #fff); padding: 10px 12px; }
+    .core-box-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .core-box-head strong { font-size: 12px; color: #1f3e80; }
+    .core-box-head span { font-size: 10px; color: #667085; }
+    .registry-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .registry-chip { display: flex; align-items: center; gap: 7px; padding: 7px 9px; border-radius: 9px; background: #fff; border: 1px solid #e7ecf5; font-size: 11px; font-weight: 800; }
+    .registry-chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+
+    .mini-node-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .mini-node {
+      min-width: 0;
+      padding: 9px 8px;
+      border-radius: 10px;
+      border: 1px solid #e5eaf1;
+      background: #fff;
+      text-align: center;
+    }
+    .mini-server { width: 29px; height: 26px; margin: 0 auto 5px; position: relative; }
+    .mini-server::before, .mini-server::after, .mini-server span {
+      content: "";
+      position: absolute;
+      left: 2px;
+      right: 2px;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--accent);
+      box-shadow: inset -6px 0 rgba(255,255,255,0.24);
+    }
+    .mini-server::before { top: 1px; }
+    .mini-server span { top: 10px; }
+    .mini-server::after { top: 19px; }
+    .mini-node b { display: block; font-size: 10px; color: #344054; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .mini-node small { display: inline-flex; align-items: center; gap: 4px; margin-top: 3px; font-size: 9px; color: #667085; }
+    .mini-node small::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+    .mini-node.warning small::before { background: var(--amber); }
+
+    .cluster-summary { height: 100%; display: flex; flex-direction: column; gap: 10px; }
+    .cluster-summary .mini-node-row { flex: 1; align-items: stretch; }
+    .cluster-note { font-size: 11px; line-height: 1.55; color: #667085; padding: 8px 10px; border-radius: 9px; background: #f8fafc; border: 1px dashed #d9e1ec; }
+
+    .pipeline-flow { height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+    .pipeline-row { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: center; gap: 6px; }
+    .pipeline-step { padding: 10px 6px; border: 1px solid var(--border); border-radius: 9px; text-align: center; background: #fff; font-size: 11px; font-weight: 800; }
+    .pipeline-arrow { color: var(--accent); font-weight: 900; }
+
+    .instance-body { display: flex; flex-direction: column; gap: 10px; }
+    .instance-role { font-size: 11px; color: #667085; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .meter-row { display: grid; grid-template-columns: 44px 1fr 36px; align-items: center; gap: 7px; font-size: 10px; color: #667085; }
+    .meter { height: 6px; border-radius: 999px; background: #edf1f6; overflow: hidden; }
+    .meter span { display: block; height: 100%; width: var(--value); border-radius: inherit; background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 75%, #fff), var(--accent)); }
+    .instance-mini-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .instance-mini-stats div { padding: 7px 8px; border-radius: 9px; background: #f8fafc; border: 1px solid #edf1f5; }
+    .instance-mini-stats span { display: block; font-size: 9px; color: #98a2b3; }
+    .instance-mini-stats strong { display: block; margin-top: 2px; font-size: 11px; color: #344054; }
+
+    .topology-node.compact .node-head { min-height: 54px; padding: 9px 10px; gap: 8px; }
+    .topology-node.compact .node-icon { width: 31px; height: 31px; flex-basis: 31px; border-radius: 9px; }
+    .topology-node.compact .node-icon svg { width: 19px; height: 19px; }
+    .topology-node.compact .node-title strong { font-size: 13px; }
+    .topology-node.compact .node-title span { font-size: 9px; }
+    .topology-node.compact .status-pill { width: 18px; height: 18px; padding: 0; justify-content: center; }
+    .topology-node.compact .status-pill i { width: 7px; height: 7px; }
+    .topology-node.compact .status-label-text { display: none; }
+    .topology-node.compact .node-body { padding: 8px 10px; }
+    .topology-node.compact .node-footer { min-height: 29px; padding: 5px 9px; }
+    .topology-node.compact .node-footer .metric { display: none; }
+    .topology-node.compact .drill-hint { font-size: 9px; }
+    .topology-node.compact .instance-body { gap: 6px; }
+    .topology-node.compact .meter-row { grid-template-columns: 30px 1fr 26px; gap: 4px; font-size: 8px; }
+    .topology-node.compact .instance-mini-stats { display: none; }
+
+    .stage-annotation {
+      position: absolute;
+      z-index: 3;
+      transform: translateX(-50%);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.93);
+      border: 1px solid #dfe6f0;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 800;
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .stage-annotation::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--annotation, var(--blue)); }
+
+    .edge {
+      fill: none;
+      stroke-width: 2.2;
+      opacity: 0.78;
+      transition: opacity 0.16s ease, stroke-width 0.16s ease;
+    }
+    .edge.flow { stroke-dasharray: 9 8; animation: flow 1.7s linear infinite; }
+    .edge.active { opacity: 1; stroke-width: 4; filter: drop-shadow(0 0 3px rgba(37,99,235,0.22)); }
+    .edge-label rect { fill: rgba(255,255,255,0.94); stroke: #e2e8f0; rx: 8; }
+    .edge-label text { fill: #667085; font-size: 10px; font-weight: 800; text-anchor: middle; dominant-baseline: middle; }
+
+    .panel-foot {
+      min-height: 46px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 16px;
+      border-top: 1px solid #edf1f6;
+      background: #fcfdff;
+      color: #667085;
+      font-size: 12px;
+    }
+    .panel-foot svg { width: 17px; height: 17px; color: #64748b; }
+    .panel-foot strong { color: #344054; }
+
+    .inspector { min-height: 822px; display: flex; flex-direction: column; }
+    .inspector-head { min-height: 72px; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #edf1f6; background: linear-gradient(180deg, #fff, #fbfcfe); }
+    .inspector-head h3 { margin: 0; font-size: 16px; }
+    .inspector-head p { margin: 3px 0 0; color: #98a2b3; font-size: 11px; }
+    .close-inspector { margin-left: auto; width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid #e0e6ef; background: #fff; border-radius: 9px; cursor: pointer; color: #667085; }
+    .close-inspector:hover { color: var(--blue); border-color: #b8ccff; }
+    .inspector-body { flex: 1; padding: 16px; overflow: auto; }
+
+    .empty-inspector { height: 100%; min-height: 650px; display: grid; place-items: center; text-align: center; color: #98a2b3; }
+    .empty-inspector .empty-icon { width: 76px; height: 76px; margin: 0 auto 14px; border-radius: 22px; display: grid; place-items: center; background: #f2f6ff; color: #6687d9; }
+    .empty-inspector svg { width: 38px; height: 38px; }
+    .empty-inspector strong { display: block; color: #475467; font-size: 14px; }
+    .empty-inspector p { margin: 7px 0 0; max-width: 230px; font-size: 12px; line-height: 1.65; }
+
+    .detail-hero { padding: 14px; border: 1px solid #e7ecf3; border-radius: 14px; background: linear-gradient(145deg, #f8fbff, #fff); }
+    .detail-title-row { display: flex; align-items: center; gap: 10px; }
+    .detail-icon { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: #eff6ff; color: var(--blue); border: 1px solid #cfe0ff; }
+    .detail-icon svg { width: 24px; height: 24px; }
+    .detail-title-row h4 { margin: 0; font-size: 16px; }
+    .detail-title-row p { margin: 3px 0 0; color: #667085; font-size: 11px; }
+    .detail-status { margin-left: auto; }
+    .detail-address { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-radius: 10px; background: #fff; border: 1px dashed #d8e0eb; font-size: 11px; }
+    .detail-address span { color: #98a2b3; }
+    .detail-address code { color: #344054; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; }
+
+    .detail-section { margin-top: 18px; }
+    .detail-section h5 { margin: 0 0 10px; font-size: 12px; color: #344054; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .detail-kpi { padding: 10px; border-radius: 11px; border: 1px solid #e9edf3; background: #fff; }
+    .detail-kpi span { display: block; font-size: 10px; color: #98a2b3; }
+    .detail-kpi strong { display: block; margin-top: 4px; font-size: 14px; color: #344054; }
+
+    .resource-row { margin-bottom: 11px; }
+    .resource-label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 6px; font-size: 11px; color: #667085; }
+    .resource-track { height: 8px; border-radius: 999px; overflow: hidden; background: #edf1f6; }
+    .resource-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #60a5fa, #2563eb); }
+    .resource-track.warning span { background: linear-gradient(90deg, #fbbf24, #d97706); }
+
+    .spark-card { padding: 11px; border: 1px solid #e7ecf3; border-radius: 12px; background: #fff; }
+    .spark-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; }
+    .spark-head span { font-size: 10px; color: #98a2b3; }
+    .spark-head strong { font-size: 13px; color: #344054; }
+    .spark-card svg { width: 100%; height: 62px; overflow: visible; }
+
+    .detail-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .detail-table td { padding: 9px 0; border-bottom: 1px solid #eef1f5; }
+    .detail-table td:first-child { color: #98a2b3; }
+    .detail-table td:last-child { text-align: right; color: #344054; font-weight: 700; }
+
+    .log-list { display: flex; flex-direction: column; gap: 8px; }
+    .log-item { display: grid; grid-template-columns: 56px 1fr; gap: 8px; padding: 8px 9px; border-radius: 9px; background: #f8fafc; font-size: 10px; line-height: 1.45; }
+    .log-item time { color: #98a2b3; }
+    .log-item span { color: #475467; }
+    .log-item.warning span { color: #b54708; }
+
+    .toast {
+      position: fixed;
+      right: 26px;
+      bottom: 24px;
+      min-width: 250px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: #101828;
+      color: #fff;
+      box-shadow: 0 18px 40px rgba(15,23,42,0.28);
+      font-size: 12px;
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+      transition: 0.22s ease;
+      z-index: 100;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    @keyframes nodeIn { from { opacity: 0; transform: translateY(8px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @keyframes flow { to { stroke-dashoffset: -34; } }
+
+    @media (max-width: 1350px) {
+      .content-grid { grid-template-columns: 1fr; }
+      .inspector { min-height: auto; }
+      .empty-inspector { min-height: 180px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" id="brandIcon"></div>
+        <div>
+          <h1>EventMesh 集群图</h1>
+          <p>Cluster topology & observability dashboard</p>
+        </div>
+      </div>
+      <span class="env-pill">生产环境</span>
+      <div class="top-stats">
+        <div class="top-stat"><span>健康集群</span><strong>4 / 5</strong></div>
+        <div class="top-stat warning"><span>活动告警</span><strong>1</strong></div>
+        <div class="top-stat"><span>总吞吐</span><strong id="throughputTop">31.6k/s</strong></div>
+        <div class="top-stat"><span>P95 延迟</span><strong id="latencyTop">18 ms</strong></div>
+        <div class="updated">更新于 <span id="updatedAt">刚刚</span></div>
+      </div>
+    </header>
+
+    <main>
+      <section class="toolbar">
+        <button class="tool-btn" id="backBtn" title="返回上一级">← 返回</button>
+        <nav class="breadcrumb" id="breadcrumb" aria-label="面包屑导航"></nav>
+        <div class="stepper" id="stepper">
+          <div class="step" data-step="1"><span class="step-index">1</span><span>全局总览</span></div>
+          <div class="step" data-step="2"><span class="step-index">2</span><span>集群组件</span></div>
+          <div class="step" data-step="3"><span class="step-index">3</span><span>节点实例</span></div>
+        </div>
+        <div class="toolbar-spacer"></div>
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6"></path></svg>
+          <input id="searchInput" placeholder="搜索节点 / 集群" />
+        </div>
+        <button class="tool-btn" id="refreshBtn">↻ 刷新数据</button>
+      </section>
+
+      <div class="content-grid">
+        <section class="topology-panel">
+          <div class="panel-head">
+            <div class="panel-title-wrap">
+              <h2 id="viewTitle">全局拓扑</h2>
+              <p id="viewSubtitle">从应用接入到 EventMesh 核心，再到消息中间件和下游系统</p>
+            </div>
+            <div class="panel-head-actions">
+              <button class="tool-btn primary" id="demoBtn">▶ 演示下钻</button>
+              <button class="tool-btn" id="homeBtn">⌂ 回到全局</button>
+            </div>
+          </div>
+
+          <div class="legend">
+            <strong>状态</strong>
+            <span class="legend-item"><i class="legend-dot healthy"></i>正常</span>
+            <span class="legend-item"><i class="legend-dot warning"></i>警告</span>
+            <span class="legend-item"><i class="legend-dot error"></i>异常</span>
+            <span class="legend-item"><i class="legend-dot unknown"></i>未知</span>
+            <span style="margin-left:auto">点击集群卡片逐层进入；点击节点查看右侧详情</span>
+          </div>
+
+          <div class="stage-scroll" id="stageScroll">
+            <div class="stage" id="stage">
+              <svg id="edgeLayer" viewBox="0 0 1180 700" preserveAspectRatio="none"></svg>
+              <div id="nodeLayer"></div>
+            </div>
+          </div>
+
+          <div class="panel-foot">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><path d="M12 8h.01M11 12h1v4h1"></path></svg>
+            <span><strong>推荐交互：</strong>第一层看系统边界，第二层看集群组件，第三层看实例与运行指标。</span>
+          </div>
+        </section>
+
+        <aside class="inspector" id="inspector">
+          <div class="inspector-head">
+            <div>
+              <h3>节点详情</h3>
+              <p>运行状态、资源、流量和基础信息</p>
+            </div>
+            <button class="close-inspector" id="closeInspector" title="关闭详情">×</button>
+          </div>
+          <div class="inspector-body" id="inspectorBody"></div>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const themes = {
+      blue:   { accent: '#2563eb', soft: '#eff6ff', border: '#b9d2ff' },
+      green:  { accent: '#16a34a', soft: '#f0fdf4', border: '#b9e8c7' },
+      orange: { accent: '#ea580c', soft: '#fff7ed', border: '#fed0ae' },
+      purple: { accent: '#7c3aed', soft: '#f5f3ff', border: '#d8c8ff' },
+      cyan:   { accent: '#0891b2', soft: '#ecfeff', border: '#b5eaf1' },
+      amber:  { accent: '#d97706', soft: '#fffbeb', border: '#f7d99a' },
+      red:    { accent: '#dc2626', soft: '#fef2f2', border: '#fecaca' },
+      gray:   { accent: '#667085', soft: '#f8fafc', border: '#dbe2ea' }
+    };
+
+    const statusText = { healthy: '正常', warning: '警告', error: '异常', unknown: '未知' };
+
+    function icon(name) {
+      const common = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+      const map = {
+        mesh: `<svg ${common}><circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="17" r="2.2"/><circle cx="19" cy="17" r="2.2"/><path d="M10.8 6.9 6.2 15M13.2 6.9l4.6 8.1M7.2 17h9.6"/></svg>`,
+        access: `<svg ${common}><path d="M4 12h11"/><path d="m11 7 5 5-5 5"/><rect x="16" y="4" width="4" height="16" rx="1.2"/></svg>`,
+        integration: `<svg ${common}><path d="M5 5v5c0 2 1 3 3 3h8"/><path d="m13 9 4 4-4 4"/><circle cx="5" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><path d="M5 17v-1c0-2 1-3 3-3"/></svg>`,
+        store: `<svg ${common}><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5"/><path d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg>`,
+        registry: `<svg ${common}><path d="M12 3 4.8 7v10L12 21l7.2-4V7L12 3Z"/><circle cx="12" cy="12" r="2.4"/><path d="M12 7.5v2M12 14.5v2M7.8 9.6l1.7 1M14.5 13l1.7 1M7.8 14.4l1.7-1M14.5 11l1.7-1"/></svg>`,
+        runtime: `<svg ${common}><rect x="4" y="4" width="16" height="5" rx="1.5"/><rect x="4" y="10" width="16" height="5" rx="1.5"/><rect x="4" y="16" width="16" height="4" rx="1.5"/><path d="M7 6.5h.01M7 12.5h.01M7 18h.01M10 6.5h6M10 12.5h6M10 18h6"/></svg>`,
+        pipeline: `<svg ${common}><circle cx="5" cy="5" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="5" cy="19" r="2"/><path d="M7 5h3c3 0 4 2 4 4v.5M7 19h3c3 0 4-2 4-4v-.5M16 12h1"/></svg>`,
+        kafka: `<svg ${common}><circle cx="7" cy="5" r="2"/><circle cx="7" cy="12" r="2"/><circle cx="7" cy="19" r="2"/><circle cx="17" cy="8" r="2"/><circle cx="17" cy="16" r="2"/><path d="M9 5h3c2 0 3 1 3 3M9 12h3M9 19h3c2 0 3-1 3-3"/></svg>`,
+        rocket: `<svg ${common}><path d="M14 4c3 0 5-1 6-2 0 3-1 6-4 9l-4 4-3-3 4-4c1-1 1-3 1-4Z"/><path d="m9 12-4 1-2 3 5 1M12 15l-1 4-3 2-1-5"/><circle cx="16" cy="6" r="1.3"/></svg>`,
+        pulsar: `<svg ${common}><path d="M3 9c3 0 3-4 6-4s3 4 6 4 3-4 6-4"/><path d="M3 15c3 0 3-4 6-4s3 4 6 4 3-4 6-4"/></svg>`,
+        app: `<svg ${common}><path d="m12 3 7 4v10l-7 4-7-4V7l7-4Z"/><path d="m5 7 7 4 7-4M12 11v10"/></svg>`,
+        web: `<svg ${common}><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.3 2.5 3.5 5.5 3.5 9S14.3 18.5 12 21M12 3C9.7 5.5 8.5 8.5 8.5 12S9.7 18.5 12 21"/></svg>`,
+        code: `<svg ${common}><path d="m8 6-5 6 5 6M16 6l5 6-5 6M14 4l-4 16"/></svg>`,
+        iot: `<svg ${common}><path d="M5 12a10 10 0 0 1 14 0M8 15a6 6 0 0 1 8 0M11 18a2 2 0 0 1 2 0"/><circle cx="12" cy="20" r="1"/></svg>`,
+        controller: `<svg ${common}><path d="M4 9 7 5l5 4 5-4 3 4-2 8H6L4 9Z"/><path d="M7 20h10"/></svg>`,
+        bookie: `<svg ${common}><path d="M5 4h5c1.1 0 2 .9 2 2v14c0-1.1-.9-2-2-2H5V4ZM19 4h-5c-1.1 0-2 .9-2 2v14c0-1.1.9-2 2-2h5V4Z"/></svg>`,
+        source: `<svg ${common}><path d="M4 6h16M4 12h10M4 18h7"/><path d="m17 15 3 3-3 3"/></svg>`,
+        sink: `<svg ${common}><path d="M20 6H4M20 12H10M20 18h-7"/><path d="m7 15-3 3 3 3"/></svg>`,
+        search: `<svg ${common}><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>`
+      };
+      return map[name] || map.runtime;
+    }
+
+    function hashValue(text) {
+      return [...text].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 10007, 17);
+    }
+
+    function makeDetail(id, role, overrides = {}) {
+      const h = hashValue(id);
+      const cpu = overrides.cpu ?? (24 + (h % 53));
+      const memory = overrides.memory ?? (38 + ((h * 3) % 49));
+      const latency = overrides.latency ?? (7 + (h % 25));
+      const throughput = overrides.throughput ?? `${(1.2 + (h % 62) / 10).toFixed(1)}k/s`;
+      const connections = overrides.connections ?? (82 + (h % 410));
+      const address = overrides.address ?? `10.0.${1 + (h % 8)}.${10 + (h % 180)}:${10000 + (h % 900)}`;
+      const version = overrides.version ?? (role.includes('Kafka') ? '3.7.0' : role.includes('Pulsar') ? '3.2.2' : role.includes('Rocket') ? '5.3.1' : '1.11.0');
+      const values = Array.from({ length: 18 }, (_, i) => 28 + ((h + i * 17 + (i % 3) * 9) % 58));
+      return {
+        role,
+        address,
+        version,
+        uptime: overrides.uptime ?? `${7 + (h % 22)} 天 ${2 + (h % 18)} 小时`,
+        cpu,
+        memory,
+        latency,
+        throughput,
+        connections,
+        events: overrides.events ?? `${(2.4 + (h % 74) / 10).toFixed(1)}k/s`,
+        values,
+        logs: overrides.logs ?? [
+          ['10:42:18', '健康检查通过，节点响应正常'],
+          ['10:41:52', `处理事件流量 ${throughput}`],
+          ['10:40:30', '配置中心同步完成']
+        ]
+      };
+    }
+
+    function leafNode(config) {
+      const status = config.status || 'healthy';
+      const role = config.role || config.subtitle || '节点实例';
+      return {
+        bodyType: 'instance',
+        icon: 'runtime',
+        theme: 'blue',
+        w: 220,
+        h: 220,
+        ...config,
+        status,
+        detail: makeDetail(config.id, role, config.detail || {})
+      };
+    }
+
+    const views = {
+      overview: {
+        label: '全局拓扑', step: 1, height: 700,
+        title: '全局拓扑',
+        subtitle: '先看系统边界：应用如何接入、EventMesh 如何转发、事件最终流向哪里',
+        annotations: [{ x: 590, y: 465, text: '消息中间件（Event Store）', theme: 'purple' }],
+        nodes: [
+          {
+            id: 'access', title: '应用接入', subtitle: 'Producers / Consumers', icon: 'access', theme: 'green', status: 'healthy',
+            x: 30, y: 145, w: 235, h: 270, bodyType: 'list',
+            items: ['业务应用', 'Web / HTTP', 'gRPC / SDK', 'IoT / MQTT'],
+            metrics: [{ label: '协议', value: '5 类' }, { label: '入口', value: '12.8k/s' }],
+            drill: 'access'
+          },
+          {
+            id: 'eventmesh', title: 'EventMesh 集群', subtitle: '事件总线中枢', icon: 'mesh', theme: 'blue', status: 'healthy',
+            x: 350, y: 60, w: 500, h: 370, bodyType: 'core', highlight: true,
+            metrics: [{ label: 'Runtime', value: '3' }, { label: '事件', value: '22.4k/s' }, { label: 'P95', value: '18ms' }],
+            drill: 'eventmesh'
+          },
+          {
+            id: 'integration', title: '数据集成', subtitle: 'Connector / Pipeline', icon: 'integration', theme: 'orange', status: 'healthy',
+            x: 930, y: 145, w: 220, h: 270, bodyType: 'pipeline',
+            metrics: [{ label: '任务', value: '18' }, { label: '成功率', value: '99.98%' }],
+            drill: 'integration'
+          },
+          {
+            id: 'kafka', title: 'Kafka 集群', subtitle: 'kafka-cluster', icon: 'kafka', theme: 'purple', status: 'healthy',
+            x: 190, y: 510, w: 260, h: 150, bodyType: 'cluster',
+            items: [{ label: 'C-01' }, { label: 'B-01' }, { label: 'B-06' }],
+            metrics: [{ label: 'Broker', value: '6' }, { label: 'Topics', value: '214' }],
+            drill: 'kafka'
+          },
+          {
+            id: 'rocketmq', title: 'RocketMQ 集群', subtitle: 'rocketmq-cluster', icon: 'rocket', theme: 'orange', status: 'warning',
+            x: 465, y: 510, w: 260, h: 150, bodyType: 'cluster',
+            items: [{ label: 'NS-01' }, { label: 'Master' }, { label: 'Slave', status: 'warning' }],
+            metrics: [{ label: 'Broker组', value: '4' }, { label: 'Topics', value: '126' }],
+            drill: 'rocketmq'
+          },
+          {
+            id: 'pulsar', title: 'Pulsar 集群', subtitle: 'pulsar-cluster', icon: 'pulsar', theme: 'blue', status: 'healthy',
+            x: 740, y: 510, w: 260, h: 150, bodyType: 'cluster',
+            items: [{ label: 'Broker-01' }, { label: 'Bookie-01' }, { label: 'Bookie-04' }],
+            metrics: [{ label: 'Broker', value: '3' }, { label: 'Bookie', value: '4' }],
+            drill: 'pulsar'
+          }
+        ],
+        edges: [
+          { from: 'access', to: 'eventmesh', label: '统一接入', theme: 'green', flow: true },
+          { from: 'eventmesh', to: 'integration', label: '事件分发', theme: 'blue', flow: true },
+          { from: 'eventmesh', to: 'kafka', theme: 'purple', flow: true },
+          { from: 'eventmesh', to: 'rocketmq', theme: 'orange', flow: true },
+          { from: 'eventmesh', to: 'pulsar', theme: 'blue', flow: true }
+        ]
+      },
+
+      eventmesh: {
+        label: 'EventMesh 集群', step: 2, height: 700,
+        title: 'EventMesh 集群组件',
+        subtitle: '核心由注册/元数据、Runtime 集群、协议接入和事件投递能力组成',
+        nodes: [
+          {
+            id: 'gateway', title: '协议接入网关', subtitle: '多协议统一入口', icon: 'access', theme: 'green', status: 'healthy',
+            x: 30, y: 230, w: 240, h: 230, bodyType: 'list',
+            items: ['HTTP / Webhook', 'gRPC', 'MQTT', 'TCP / WebSocket'],
+            metrics: [{ label: '连接', value: '1,284' }, { label: '入口', value: '12.8k/s' }], drill: 'access'
+          },
+          {
+            id: 'registry', title: '注册 / 元数据', subtitle: 'etcd + Nacos（可选）', icon: 'registry', theme: 'cyan', status: 'healthy',
+            x: 380, y: 35, w: 420, h: 150, bodyType: 'cluster',
+            items: [{ label: 'etcd-01' }, { label: 'etcd-02' }, { label: 'etcd-03' }],
+            metrics: [{ label: 'Quorum', value: '3/3' }, { label: '同步', value: '正常' }], drill: 'registry'
+          },
+          {
+            id: 'runtimeCluster', title: 'Runtime 集群', subtitle: '协议转换、路由、转发', icon: 'runtime', theme: 'blue', status: 'healthy',
+            x: 340, y: 230, w: 520, h: 300, bodyType: 'cluster', highlight: true,
+            items: [{ label: 'Runtime-01' }, { label: 'Runtime-02' }, { label: 'Runtime-03', status: 'warning' }],
+            metrics: [{ label: '节点', value: '3' }, { label: '事件', value: '22.4k/s' }, { label: 'P95', value: '18ms' }], drill: 'runtime'
+          },
+          {
+            id: 'delivery', title: '事件路由与投递', subtitle: 'Connector / Consumer', icon: 'pipeline', theme: 'orange', status: 'healthy',
+            x: 930, y: 230, w: 220, h: 230, bodyType: 'list',
+            items: ['事件路由', '协议转换', '消息转发', '数据集成'],
+            metrics: [{ label: '任务', value: '18' }, { label: '失败', value: '0.02%' }], drill: 'integration'
+          },
+          {
+            id: 'eventstore', title: '消息中间件', subtitle: 'Kafka / RocketMQ / Pulsar', icon: 'store', theme: 'purple', status: 'warning',
+            x: 400, y: 590, w: 400, h: 90, bodyType: 'cluster',
+            items: [{ label: 'Kafka' }, { label: 'RocketMQ', status: 'warning' }, { label: 'Pulsar' }],
+            metrics: [{ label: '集群', value: '3' }], drill: 'eventstore'
+          }
+        ],
+        edges: [
+          { from: 'gateway', to: 'runtimeCluster', label: '接入', theme: 'green', flow: true },
+          { from: 'registry', to: 'runtimeCluster', label: '注册 / 配置', theme: 'cyan', flow: true },
+          { from: 'runtimeCluster', to: 'delivery', label: '路由', theme: 'blue', flow: true },
+          { from: 'runtimeCluster', to: 'eventstore', label: '投递 / 消费', theme: 'purple', flow: true }
+        ]
+      },
+
+      runtime: {
+        label: 'Runtime 节点', step: 3, height: 700,
+        title: 'Runtime 节点拓扑',
+        subtitle: '查看节点间通信、配置依赖、事件入口和消息投递关系',
+        annotations: [{ x: 592, y: 478, text: '事件投递', theme: 'purple' }],
+        nodes: [
+          {
+            id: 'runtimeSource', title: '事件入口', subtitle: 'Producer / SDK', icon: 'source', theme: 'green', status: 'healthy',
+            x: 20, y: 260, w: 150, h: 160, bodyType: 'list', items: ['HTTP', 'gRPC', 'MQTT'],
+            metrics: [{ label: 'QPS', value: '12.8k' }], detail: makeDetail('runtimeSource', '事件入口网关', { address: 'eventmesh-gateway:8080', cpu: 33, memory: 48 })
+          },
+          leafNode({ id: 'runtime-01', title: 'Runtime-01', subtitle: '10.0.1.11:10105', icon: 'runtime', theme: 'blue', status: 'healthy', x: 210, y: 190, w: 245, h: 260, role: 'EventMesh Runtime', detail: { address: '10.0.1.11:10105', cpu: 42, memory: 58, latency: 12, throughput: '7.3k/s' } }),
+          leafNode({ id: 'runtime-02', title: 'Runtime-02', subtitle: '10.0.1.12:10105', icon: 'runtime', theme: 'blue', status: 'healthy', x: 470, y: 150, w: 245, h: 300, role: 'EventMesh Runtime', detail: { address: '10.0.1.12:10105', cpu: 51, memory: 63, latency: 15, throughput: '8.1k/s' } }),
+          leafNode({ id: 'runtime-03', title: 'Runtime-03', subtitle: '10.0.1.13:10105', icon: 'runtime', theme: 'amber', status: 'warning', x: 730, y: 190, w: 245, h: 260, role: 'EventMesh Runtime', detail: { address: '10.0.1.13:10105', cpu: 78, memory: 82, latency: 34, throughput: '7.0k/s', logs: [['10:42:18', '连接数接近告警阈值'], ['10:41:52', '事件处理仍在正常范围'], ['10:40:30', '配置中心同步完成']] } }),
+          {
+            id: 'runtimeSink', title: '下游系统', subtitle: 'Consumer / Connector', icon: 'sink', theme: 'orange', status: 'healthy',
+            x: 1020, y: 260, w: 140, h: 160, bodyType: 'list', items: ['Consumer', 'Sink'],
+            metrics: [{ label: '出口', value: '11.9k/s' }], detail: makeDetail('runtimeSink', '下游消费端', { address: 'connector-gateway:9090', cpu: 28, memory: 44 })
+          },
+          {
+            id: 'runtimeRegistry', title: '注册中心', subtitle: 'etcd / Nacos', icon: 'registry', theme: 'cyan', status: 'healthy',
+            x: 470, y: 25, w: 245, h: 90, bodyType: 'cluster', items: [{ label: 'etcd' }, { label: 'Nacos' }],
+            metrics: [{ label: '同步', value: '正常' }], detail: makeDetail('runtimeRegistry', '注册与元数据服务', { address: 'etcd-cluster:2379', cpu: 26, memory: 40 })
+          },
+          {
+            id: 'runtimeStore', title: 'Event Store', subtitle: 'Kafka / RocketMQ / Pulsar', icon: 'store', theme: 'purple', status: 'warning',
+            x: 470, y: 520, w: 245, h: 105, bodyType: 'cluster', items: [{ label: 'Kafka' }, { label: 'RMQ', status: 'warning' }, { label: 'Pulsar' }],
+            metrics: [{ label: '投递', value: '22.1k/s' }], detail: makeDetail('runtimeStore', '消息中间件聚合层', { address: 'event-store', cpu: 47, memory: 61 })
+          }
+        ],
+        edges: [
+          { from: 'runtimeSource', to: 'runtime-01', label: '事件', theme: 'green', flow: true },
+          { from: 'runtime-01', to: 'runtime-02', theme: 'blue', flow: true, bidirectional: true },
+          { from: 'runtime-02', to: 'runtime-03', theme: 'blue', flow: true, bidirectional: true },
+          { from: 'runtime-03', to: 'runtimeSink', label: '转发', theme: 'orange', flow: true },
+          { from: 'runtimeRegistry', to: 'runtime-02', label: '配置', theme: 'cyan', flow: true },
+          { from: 'runtime-02', to: 'runtimeStore', theme: 'purple', flow: true }
+        ]
+      },
+
+      registry: {
+        label: '注册 / 元数据', step: 3, height: 690,
+        title: '注册与元数据节点',
+        subtitle: 'etcd 负责核心注册与元数据；Nacos 可作为可选注册/配置能力',
+        annotations: [
+          { x: 590, y: 55, text: 'etcd 集群（核心）', theme: 'cyan' },
+          { x: 590, y: 335, text: 'Nacos 集群（可选）', theme: 'blue' }
+        ],
+        nodes: [
+          leafNode({ id: 'etcd-01', title: 'etcd-01', subtitle: 'Leader', icon: 'registry', theme: 'cyan', status: 'healthy', x: 250, y: 105, w: 200, h: 180, role: 'etcd Leader', detail: { address: '10.0.2.11:2379', cpu: 37, memory: 43, throughput: '1.8k/s' } }),
+          leafNode({ id: 'etcd-02', title: 'etcd-02', subtitle: 'Follower', icon: 'registry', theme: 'cyan', status: 'healthy', x: 490, y: 105, w: 200, h: 180, role: 'etcd Follower', detail: { address: '10.0.2.12:2379', cpu: 29, memory: 41 } }),
+          leafNode({ id: 'etcd-03', title: 'etcd-03', subtitle: 'Follower', icon: 'registry', theme: 'cyan', status: 'healthy', x: 730, y: 105, w: 200, h: 180, role: 'etcd Follower', detail: { address: '10.0.2.13:2379', cpu: 31, memory: 42 } }),
+          leafNode({ id: 'nacos-01', title: 'nacos-01', subtitle: 'Member', icon: 'registry', theme: 'blue', status: 'healthy', x: 250, y: 385, w: 200, h: 180, role: 'Nacos Member', detail: { address: '10.0.3.11:8848', cpu: 34, memory: 49 } }),
+          leafNode({ id: 'nacos-02', title: 'nacos-02', subtitle: 'Member', icon: 'registry', theme: 'blue', status: 'healthy', x: 490, y: 385, w: 200, h: 180, role: 'Nacos Member', detail: { address: '10.0.3.12:8848', cpu: 32, memory: 47 } }),
+          leafNode({ id: 'nacos-03', title: 'nacos-03', subtitle: 'Member', icon: 'registry', theme: 'blue', status: 'healthy', x: 730, y: 385, w: 200, h: 180, role: 'Nacos Member', detail: { address: '10.0.3.13:8848', cpu: 35, memory: 50 } })
+        ],
+        edges: [
+          { from: 'etcd-01', to: 'etcd-02', theme: 'cyan', bidirectional: true },
+          { from: 'etcd-02', to: 'etcd-03', theme: 'cyan', bidirectional: true },
+          { from: 'nacos-01', to: 'nacos-02', theme: 'blue', bidirectional: true },
+          { from: 'nacos-02', to: 'nacos-03', theme: 'blue', bidirectional: true }
+        ]
+      },
+
+      access: {
+        label: '应用接入', step: 2, height: 680,
+        title: '应用接入层',
+        subtitle: '不同客户端通过统一协议适配层进入 EventMesh Runtime',
+        annotations: [{ x: 590, y: 320, text: '统一协议接入层', theme: 'green' }],
+        nodes: [
+          { id: 'bizApp', title: '业务应用', subtitle: 'Java / Go / Python / .NET', icon: 'app', theme: 'green', status: 'healthy', x: 50, y: 70, w: 240, h: 160, bodyType: 'list', items: ['Event SDK', 'CloudEvents'], metrics: [{ label: '连接', value: '468' }], detail: makeDetail('bizApp', '业务应用客户端', { address: 'sdk://eventmesh', cpu: 21, memory: 36 }) },
+          { id: 'webApp', title: 'Web / HTTP', subtitle: 'REST / Webhook', icon: 'web', theme: 'green', status: 'healthy', x: 330, y: 70, w: 240, h: 160, bodyType: 'list', items: ['HTTP API', 'Webhook'], metrics: [{ label: 'QPS', value: '4.1k' }], detail: makeDetail('webApp', 'HTTP 接入端', { address: 'https://gateway/event', cpu: 28, memory: 43 }) },
+          { id: 'grpcApp', title: 'gRPC / SDK', subtitle: '长连接客户端', icon: 'code', theme: 'green', status: 'healthy', x: 610, y: 70, w: 240, h: 160, bodyType: 'list', items: ['gRPC', 'EventMesh SDK'], metrics: [{ label: '连接', value: '604' }], detail: makeDetail('grpcApp', 'gRPC 接入端', { address: 'grpc://gateway:10105', cpu: 31, memory: 46 }) },
+          { id: 'iotApp', title: 'IoT 设备', subtitle: 'MQTT / TCP', icon: 'iot', theme: 'green', status: 'healthy', x: 890, y: 70, w: 240, h: 160, bodyType: 'list', items: ['MQTT', 'TCP'], metrics: [{ label: '设备', value: '2,706' }], detail: makeDetail('iotApp', 'IoT 接入端', { address: 'mqtt://gateway:1883', cpu: 35, memory: 51 }) },
+          { id: 'protocolGateway', title: 'Protocol Gateway', subtitle: '鉴权、限流、协议适配', icon: 'access', theme: 'blue', status: 'healthy', x: 360, y: 365, w: 460, h: 230, bodyType: 'list', items: ['统一认证', '协议转换', '连接管理', '限流熔断'], metrics: [{ label: '入口', value: '12.8k/s' }, { label: 'P95', value: '11ms' }], detail: makeDetail('protocolGateway', 'EventMesh 协议网关', { address: 'gateway.eventmesh.local', cpu: 48, memory: 57, throughput: '12.8k/s' }) }
+        ],
+        edges: [
+          { from: 'bizApp', to: 'protocolGateway', theme: 'green', flow: true },
+          { from: 'webApp', to: 'protocolGateway', theme: 'green', flow: true },
+          { from: 'grpcApp', to: 'protocolGateway', theme: 'green', flow: true },
+          { from: 'iotApp', to: 'protocolGateway', theme: 'green', flow: true }
+        ]
+      },
+
+      integration: {
+        label: '数据集成', step: 2, height: 700,
+        title: 'Connector / Pipeline 拓扑',
+        subtitle: '数据源进入 Topic，经 Pipeline 处理后写入目标系统',
+        annotations: [{ x: 590, y: 100, text: 'Source → Topic → Sink', theme: 'orange' }],
+        nodes: [
+          { id: 'mysqlSource', title: 'MySQL Source', subtitle: 'CDC Connector', icon: 'store', theme: 'orange', status: 'healthy', x: 50, y: 145, w: 220, h: 155, bodyType: 'list', items: ['binlog', 'schema'], metrics: [{ label: '流量', value: '2.6k/s' }], detail: makeDetail('mysqlSource', 'MySQL Source Connector', { address: 'mysql-source:3306', cpu: 27, memory: 44 }) },
+          { id: 'kafkaSource', title: 'Kafka Source', subtitle: 'Topic Consumer', icon: 'kafka', theme: 'purple', status: 'healthy', x: 50, y: 330, w: 220, h: 155, bodyType: 'list', items: ['topic-a', 'topic-b'], metrics: [{ label: 'Lag', value: '0.8s' }], detail: makeDetail('kafkaSource', 'Kafka Source Connector', { address: 'kafka-source:9092', cpu: 33, memory: 49 }) },
+          { id: 'httpSource', title: 'HTTP Source', subtitle: 'Webhook Receiver', icon: 'web', theme: 'green', status: 'healthy', x: 50, y: 515, w: 220, h: 155, bodyType: 'list', items: ['REST', 'Webhook'], metrics: [{ label: 'QPS', value: '1.1k' }], detail: makeDetail('httpSource', 'HTTP Source Connector', { address: 'https://connector/http', cpu: 22, memory: 37 }) },
+          { id: 'pipelineNode', title: 'Pipeline', subtitle: '数据流任务', icon: 'pipeline', theme: 'blue', status: 'healthy', x: 430, y: 240, w: 320, h: 230, bodyType: 'pipeline', metrics: [{ label: '任务', value: '18' }, { label: '成功率', value: '99.98%' }], detail: makeDetail('pipelineNode', 'EventMesh Pipeline', { address: 'pipeline-scheduler:8088', cpu: 46, memory: 59, throughput: '6.4k/s' }) },
+          { id: 'elasticSink', title: 'Elasticsearch', subtitle: 'Search Sink', icon: 'sink', theme: 'cyan', status: 'healthy', x: 910, y: 145, w: 220, h: 155, bodyType: 'list', items: ['index:event-*', 'bulk'], metrics: [{ label: '写入', value: '2.1k/s' }], detail: makeDetail('elasticSink', 'Elasticsearch Sink', { address: 'elasticsearch:9200', cpu: 54, memory: 67 }) },
+          { id: 'mysqlSink', title: 'MySQL Sink', subtitle: 'Database Writer', icon: 'store', theme: 'blue', status: 'healthy', x: 910, y: 330, w: 220, h: 155, bodyType: 'list', items: ['batch', 'upsert'], metrics: [{ label: '写入', value: '1.7k/s' }], detail: makeDetail('mysqlSink', 'MySQL Sink', { address: 'mysql-sink:3306', cpu: 36, memory: 52 }) },
+          { id: 's3Sink', title: 'OSS / S3', subtitle: 'Object Storage', icon: 'sink', theme: 'green', status: 'healthy', x: 910, y: 515, w: 220, h: 155, bodyType: 'list', items: ['parquet', 'archive'], metrics: [{ label: '写入', value: '896/s' }], detail: makeDetail('s3Sink', 'S3 Sink', { address: 's3://event-archive', cpu: 25, memory: 40 }) }
+        ],
+        edges: [
+          { from: 'mysqlSource', to: 'pipelineNode', theme: 'orange', flow: true },
+          { from: 'kafkaSource', to: 'pipelineNode', theme: 'purple', flow: true },
+          { from: 'httpSource', to: 'pipelineNode', theme: 'green', flow: true },
+          { from: 'pipelineNode', to: 'elasticSink', theme: 'cyan', flow: true },
+          { from: 'pipelineNode', to: 'mysqlSink', theme: 'blue', flow: true },
+          { from: 'pipelineNode', to: 's3Sink', theme: 'green', flow: true }
+        ]
+      },
+
+      eventstore: {
+        label: '消息中间件', step: 2, height: 630,
+        title: 'Event Store 集群选择',
+        subtitle: 'EventMesh 可按路由策略把事件投递到不同消息系统',
+        nodes: [
+          { id: 'eventmeshOut', title: 'EventMesh Runtime', subtitle: '统一事件出口', icon: 'mesh', theme: 'blue', status: 'healthy', x: 470, y: 30, w: 240, h: 90, bodyType: 'cluster', items: [{ label: 'Route' }, { label: 'Retry' }, { label: 'DLQ' }], metrics: [{ label: '投递', value: '22.1k/s' }], detail: makeDetail('eventmeshOut', 'EventMesh 事件出口', { address: 'runtime-cluster', cpu: 49, memory: 60 }) },
+          { id: 'kafkaStore', title: 'Kafka 集群', subtitle: '高吞吐事件流', icon: 'kafka', theme: 'purple', status: 'healthy', x: 80, y: 190, w: 300, h: 285, bodyType: 'cluster', items: [{ label: '3 Controllers' }, { label: '6 Brokers' }, { label: '214 Topics' }], metrics: [{ label: '吞吐', value: '11.2k/s' }, { label: 'Lag', value: '0.8s' }], drill: 'kafka' },
+          { id: 'rocketStore', title: 'RocketMQ 集群', subtitle: '业务消息与顺序消息', icon: 'rocket', theme: 'orange', status: 'warning', x: 440, y: 190, w: 300, h: 285, bodyType: 'cluster', items: [{ label: '3 NameServer' }, { label: '4 Broker Groups' }, { label: '126 Topics', status: 'warning' }], metrics: [{ label: '吞吐', value: '6.4k/s' }, { label: '告警', value: '1' }], drill: 'rocketmq' },
+          { id: 'pulsarStore', title: 'Pulsar 集群', subtitle: '存算分离消息平台', icon: 'pulsar', theme: 'blue', status: 'healthy', x: 800, y: 190, w: 300, h: 285, bodyType: 'cluster', items: [{ label: '3 Brokers' }, { label: '4 Bookies' }, { label: '82 Topics' }], metrics: [{ label: '吞吐', value: '4.5k/s' }, { label: '积压', value: '低' }], drill: 'pulsar' }
+        ],
+        edges: [
+          { from: 'eventmeshOut', to: 'kafkaStore', theme: 'purple', flow: true },
+          { from: 'eventmeshOut', to: 'rocketStore', theme: 'orange', flow: true },
+          { from: 'eventmeshOut', to: 'pulsarStore', theme: 'blue', flow: true }
+        ]
+      },
+
+      kafka: {
+        label: 'Kafka 集群', step: 3, height: 700,
+        title: 'Kafka 集群节点拓扑',
+        subtitle: 'KRaft Controller Quorum 管理元数据，Broker 负责消息读写',
+        annotations: [
+          { x: 590, y: 40, text: 'Controller Quorum', theme: 'purple' },
+          { x: 590, y: 330, text: 'Broker 集群', theme: 'purple' }
+        ],
+        nodes: [
+          leafNode({ id: 'C-01', title: 'C-01', subtitle: 'Controller', icon: 'controller', theme: 'purple', status: 'healthy', x: 210, y: 75, w: 210, h: 185, role: 'Kafka Controller', detail: { address: '10.1.1.11:9093', cpu: 28, memory: 45 } }),
+          leafNode({ id: 'C-02', title: 'C-02', subtitle: 'Controller Leader', icon: 'controller', theme: 'purple', status: 'healthy', x: 485, y: 75, w: 210, h: 185, role: 'Kafka Controller Leader', detail: { address: '10.1.1.12:9093', cpu: 34, memory: 48 } }),
+          leafNode({ id: 'C-03', title: 'C-03', subtitle: 'Controller', icon: 'controller', theme: 'purple', status: 'healthy', x: 760, y: 75, w: 210, h: 185, role: 'Kafka Controller', detail: { address: '10.1.1.13:9093', cpu: 27, memory: 44 } }),
+          leafNode({ id: 'B-01', title: 'B-01', subtitle: 'Kafka Broker', icon: 'kafka', theme: 'purple', status: 'healthy', x: 55, y: 380, w: 160, h: 160, compact: true, role: 'Kafka Broker', detail: { address: '10.1.2.11:9092', cpu: 52, memory: 68, throughput: '2.1k/s' } }),
+          leafNode({ id: 'B-02', title: 'B-02', subtitle: 'Kafka Broker', icon: 'kafka', theme: 'purple', status: 'healthy', x: 235, y: 380, w: 160, h: 160, compact: true, role: 'Kafka Broker', detail: { address: '10.1.2.12:9092', cpu: 49, memory: 64, throughput: '1.9k/s' } }),
+          leafNode({ id: 'B-03', title: 'B-03', subtitle: 'Kafka Broker', icon: 'kafka', theme: 'purple', status: 'healthy', x: 415, y: 380, w: 160, h: 160, compact: true, role: 'Kafka Broker', detail: { address: '10.1.2.13:9092', cpu: 55, memory: 70, throughput: '2.0k/s' } }),
+          leafNode({ id: 'B-04', title: 'B-04', subtitle: 'Kafka Broker', icon: 'kafka', theme: 'purple', status: 'healthy', x: 595, y: 380, w: 160, h: 160, compact: true, role: 'Kafka Broker', detail: { address: '10.1.2.14:9092', cpu: 47, memory: 62, throughput: '1.7k/s' } }),
+          leafNode({ id: 'B-05', title: 'B-05', subtitle: 'Kafka Broker', icon: 'kafka', theme: 'purple', status: 'healthy', x: 775, y: 380, w: 160, h: 160, compact: true, role: 'Kafka Broker', detail: { address: '10.1.2.15:9092', cpu: 51, memory: 66, throughput: '1.8k/s' } }),
+          leafNode({ id: 'B-06', title: 'B-06', subtitle: 'Kafka Broker', icon: 'kafka', theme: 'purple', status: 'healthy', x: 955, y: 380, w: 160, h: 160, compact: true, role: 'Kafka Broker', detail: { address: '10.1.2.16:9092', cpu: 58, memory: 72, throughput: '1.7k/s' } })
+        ],
+        edges: [
+          { from: 'C-01', to: 'C-02', theme: 'purple', bidirectional: true },
+          { from: 'C-02', to: 'C-03', theme: 'purple', bidirectional: true },
+          { from: 'C-02', to: 'B-01', theme: 'purple' }, { from: 'C-02', to: 'B-02', theme: 'purple' },
+          { from: 'C-02', to: 'B-03', theme: 'purple' }, { from: 'C-02', to: 'B-04', theme: 'purple' },
+          { from: 'C-02', to: 'B-05', theme: 'purple' }, { from: 'C-02', to: 'B-06', theme: 'purple' }
+        ]
+      },
+
+      rocketmq: {
+        label: 'RocketMQ 集群', step: 3, height: 700,
+        title: 'RocketMQ 集群节点拓扑',
+        subtitle: 'NameServer 提供路由发现，Broker Group 通过 Master / Slave 提供消息服务',
+        annotations: [
+          { x: 590, y: 40, text: 'NameServer 集群', theme: 'orange' },
+          { x: 590, y: 330, text: 'Broker Groups（主从）', theme: 'orange' }
+        ],
+        nodes: [
+          leafNode({ id: 'NS-01', title: 'NS-01', subtitle: 'NameServer', icon: 'registry', theme: 'orange', status: 'healthy', x: 170, y: 75, w: 220, h: 185, role: 'RocketMQ NameServer', detail: { address: '10.2.1.11:9876', cpu: 24, memory: 39 } }),
+          leafNode({ id: 'NS-02', title: 'NS-02', subtitle: 'NameServer', icon: 'registry', theme: 'orange', status: 'healthy', x: 480, y: 75, w: 220, h: 185, role: 'RocketMQ NameServer', detail: { address: '10.2.1.12:9876', cpu: 26, memory: 41 } }),
+          leafNode({ id: 'NS-03', title: 'NS-03', subtitle: 'NameServer', icon: 'registry', theme: 'orange', status: 'healthy', x: 790, y: 75, w: 220, h: 185, role: 'RocketMQ NameServer', detail: { address: '10.2.1.13:9876', cpu: 25, memory: 40 } }),
+          leafNode({ id: 'RMQ-A-M', title: 'Group A / Master', subtitle: 'Broker Master', icon: 'rocket', theme: 'orange', status: 'healthy', x: 130, y: 380, w: 210, h: 185, role: 'RocketMQ Broker Master', detail: { address: '10.2.2.11:10911', cpu: 57, memory: 71, throughput: '2.4k/s' } }),
+          leafNode({ id: 'RMQ-A-S', title: 'Group A / Slave', subtitle: 'Broker Slave', icon: 'rocket', theme: 'amber', status: 'warning', x: 380, y: 380, w: 210, h: 185, role: 'RocketMQ Broker Slave', detail: { address: '10.2.2.12:10911', cpu: 76, memory: 84, latency: 39, logs: [['10:42:18', '复制延迟高于 3 秒'], ['10:41:52', '主从同步仍在继续'], ['10:40:30', '磁盘使用率 78%']] } }),
+          leafNode({ id: 'RMQ-B-M', title: 'Group B / Master', subtitle: 'Broker Master', icon: 'rocket', theme: 'orange', status: 'healthy', x: 650, y: 380, w: 210, h: 185, role: 'RocketMQ Broker Master', detail: { address: '10.2.2.21:10911', cpu: 53, memory: 68, throughput: '2.1k/s' } }),
+          leafNode({ id: 'RMQ-B-S', title: 'Group B / Slave', subtitle: 'Broker Slave', icon: 'rocket', theme: 'orange', status: 'healthy', x: 900, y: 380, w: 210, h: 185, role: 'RocketMQ Broker Slave', detail: { address: '10.2.2.22:10911', cpu: 45, memory: 61, throughput: '1.9k/s' } })
+        ],
+        edges: [
+          { from: 'NS-01', to: 'NS-02', theme: 'orange', bidirectional: true },
+          { from: 'NS-02', to: 'NS-03', theme: 'orange', bidirectional: true },
+          { from: 'NS-02', to: 'RMQ-A-M', theme: 'orange' },
+          { from: 'NS-02', to: 'RMQ-B-M', theme: 'orange' },
+          { from: 'RMQ-A-M', to: 'RMQ-A-S', label: '主从复制', theme: 'amber', flow: true },
+          { from: 'RMQ-B-M', to: 'RMQ-B-S', label: '主从复制', theme: 'orange', flow: true }
+        ]
+      },
+
+      pulsar: {
+        label: 'Pulsar 集群', step: 3, height: 700,
+        title: 'Pulsar 集群节点拓扑',
+        subtitle: 'Broker 负责协议与路由，Bookie 负责持久化存储',
+        annotations: [
+          { x: 590, y: 40, text: 'Broker Cluster', theme: 'blue' },
+          { x: 590, y: 345, text: 'Bookie Cluster', theme: 'cyan' }
+        ],
+        nodes: [
+          leafNode({ id: 'Broker-01', title: 'Broker-01', subtitle: 'Pulsar Broker', icon: 'pulsar', theme: 'blue', status: 'healthy', x: 160, y: 75, w: 220, h: 185, role: 'Pulsar Broker', detail: { address: '10.3.1.11:6650', cpu: 44, memory: 59, throughput: '1.6k/s' } }),
+          leafNode({ id: 'Broker-02', title: 'Broker-02', subtitle: 'Pulsar Broker', icon: 'pulsar', theme: 'blue', status: 'healthy', x: 480, y: 75, w: 220, h: 185, role: 'Pulsar Broker', detail: { address: '10.3.1.12:6650', cpu: 47, memory: 61, throughput: '1.5k/s' } }),
+          leafNode({ id: 'Broker-03', title: 'Broker-03', subtitle: 'Pulsar Broker', icon: 'pulsar', theme: 'blue', status: 'healthy', x: 800, y: 75, w: 220, h: 185, role: 'Pulsar Broker', detail: { address: '10.3.1.13:6650', cpu: 43, memory: 57, throughput: '1.4k/s' } }),
+          leafNode({ id: 'Bookie-01', title: 'Bookie-01', subtitle: 'Storage Node', icon: 'bookie', theme: 'cyan', status: 'healthy', x: 110, y: 395, w: 200, h: 175, role: 'Pulsar Bookie', detail: { address: '10.3.2.11:3181', cpu: 38, memory: 65 } }),
+          leafNode({ id: 'Bookie-02', title: 'Bookie-02', subtitle: 'Storage Node', icon: 'bookie', theme: 'cyan', status: 'healthy', x: 360, y: 395, w: 200, h: 175, role: 'Pulsar Bookie', detail: { address: '10.3.2.12:3181', cpu: 40, memory: 67 } }),
+          leafNode({ id: 'Bookie-03', title: 'Bookie-03', subtitle: 'Storage Node', icon: 'bookie', theme: 'cyan', status: 'healthy', x: 610, y: 395, w: 200, h: 175, role: 'Pulsar Bookie', detail: { address: '10.3.2.13:3181', cpu: 42, memory: 69 } }),
+          leafNode({ id: 'Bookie-04', title: 'Bookie-04', subtitle: 'Storage Node', icon: 'bookie', theme: 'cyan', status: 'healthy', x: 860, y: 395, w: 200, h: 175, role: 'Pulsar Bookie', detail: { address: '10.3.2.14:3181', cpu: 39, memory: 66 } })
+        ],
+        edges: [
+          { from: 'Broker-01', to: 'Broker-02', theme: 'blue', bidirectional: true },
+          { from: 'Broker-02', to: 'Broker-03', theme: 'blue', bidirectional: true },
+          { from: 'Broker-02', to: 'Bookie-01', theme: 'cyan', flow: true },
+          { from: 'Broker-02', to: 'Bookie-02', theme: 'cyan', flow: true },
+          { from: 'Broker-02', to: 'Bookie-03', theme: 'cyan', flow: true },
+          { from: 'Broker-02', to: 'Bookie-04', theme: 'cyan', flow: true }
+        ]
+      }
+    };
+
+    const state = {
+      path: ['overview'],
+      selectedId: null,
+      search: '',
+      demoTimers: []
+    };
+
+    const el = {
+      stage: document.getElementById('stage'),
+      edgeLayer: document.getElementById('edgeLayer'),
+      nodeLayer: document.getElementById('nodeLayer'),
+      viewTitle: document.getElementById('viewTitle'),
+      viewSubtitle: document.getElementById('viewSubtitle'),
+      breadcrumb: document.getElementById('breadcrumb'),
+      backBtn: document.getElementById('backBtn'),
+      homeBtn: document.getElementById('homeBtn'),
+      demoBtn: document.getElementById('demoBtn'),
+      searchInput: document.getElementById('searchInput'),
+      inspectorBody: document.getElementById('inspectorBody'),
+      closeInspector: document.getElementById('closeInspector'),
+      refreshBtn: document.getElementById('refreshBtn'),
+      updatedAt: document.getElementById('updatedAt'),
+      throughputTop: document.getElementById('throughputTop'),
+      latencyTop: document.getElementById('latencyTop'),
+      toast: document.getElementById('toast'),
+      brandIcon: document.getElementById('brandIcon')
+    };
+
+    function currentViewId() { return state.path[state.path.length - 1]; }
+    function currentView() { return views[currentViewId()]; }
+
+    function statusPill(status) {
+      return `<span class="status-pill ${status}"><i></i><span class="status-label-text">${statusText[status] || '未知'}</span></span>`;
+    }
+
+    function renderBody(node) {
+      if (node.bodyType === 'core') {
+        return `
+          <div class="core-layout">
+            <div class="core-box">
+              <div class="core-box-head"><strong>注册 / 元数据</strong><span>服务发现与配置</span></div>
+              <div class="registry-row">
+                <div class="registry-chip"><i></i>etcd 集群</div>
+                <div class="registry-chip"><i></i>Nacos（可选）</div>
+              </div>
+            </div>
+            <div class="core-box">
+              <div class="core-box-head"><strong>Runtime 集群</strong><span>协议转换 · 路由 · 转发</span></div>
+              <div class="mini-node-row">
+                ${['Runtime-01', 'Runtime-02', 'Runtime-03'].map((label, i) => `
+                  <div class="mini-node ${i === 2 ? 'warning' : ''}"><div class="mini-server"><span></span></div><b>${label}</b><small>${i === 2 ? '警告' : '正常'}</small></div>
+                `).join('')}
+              </div>
+            </div>
+          </div>`;
+      }
+
+      if (node.bodyType === 'list') {
+        return `<div class="tag-grid">${(node.items || []).map(item => `<div class="tag-item">${typeof item === 'string' ? item : item.label}</div>`).join('')}</div>`;
+      }
+
+      if (node.bodyType === 'cluster') {
+        return `
+          <div class="cluster-summary">
+            <div class="mini-node-row">
+              ${(node.items || []).map(item => {
+                const obj = typeof item === 'string' ? { label: item } : item;
+                return `<div class="mini-node ${obj.status === 'warning' ? 'warning' : ''}"><div class="mini-server"><span></span></div><b>${obj.label}</b><small>${obj.status === 'warning' ? '警告' : '正常'}</small></div>`;
+              }).join('')}
+            </div>
+            ${node.note ? `<div class="cluster-note">${node.note}</div>` : ''}
+          </div>`;
+      }
+
+      if (node.bodyType === 'pipeline') {
+        return `
+          <div class="pipeline-flow">
+            <div class="pipeline-row">
+              <div class="pipeline-step">Source</div><div class="pipeline-arrow">→</div>
+              <div class="pipeline-step">Topic</div><div class="pipeline-arrow">→</div>
+              <div class="pipeline-step">Sink</div>
+            </div>
+            <div class="cluster-note">可用于同步、分发和数据集成</div>
+          </div>`;
+      }
+
+      if (node.bodyType === 'instance') {
+        const d = node.detail || makeDetail(node.id, node.subtitle || '节点实例');
+        return `
+          <div class="instance-body">
+            <div class="instance-role">${d.role}</div>
+            <div class="meter-row"><span>CPU</span><div class="meter"><span style="--value:${d.cpu}%"></span></div><b>${d.cpu}%</b></div>
+            <div class="meter-row"><span>内存</span><div class="meter"><span style="--value:${d.memory}%"></span></div><b>${d.memory}%</b></div>
+            <div class="instance-mini-stats">
+              <div><span>吞吐</span><strong>${d.throughput}</strong></div>
+              <div><span>延迟</span><strong>${d.latency} ms</strong></div>
+            </div>
+          </div>`;
+      }
+
+      return '<div class="cluster-note">点击查看组件详情</div>';
+    }
+
+    function renderFooter(node) {
+      const metrics = (node.metrics || []).map(m => `<span class="metric"><span>${m.label}</span><strong>${m.value}</strong></span>`).join('');
+      const hint = node.drill ? '点击进入 →' : '点击查看详情';
+      return `<div class="node-footer">${metrics}<span class="drill-hint">${hint}</span></div>`;
+    }
+
+    function renderNodes(view) {
+      const html = [];
+
+      (view.annotations || []).forEach(a => {
+        const theme = themes[a.theme] || themes.blue;
+        html.push(`<div class="stage-annotation" style="left:${a.x}px;top:${a.y}px;--annotation:${theme.accent}">${a.text}</div>`);
+      });
+
+      view.nodes.forEach((node, index) => {
+        const theme = themes[node.theme] || themes.blue;
+        const selected = state.selectedId === node.id ? ' selected' : '';
+        const compact = node.compact || node.w <= 170 ? ' compact' : '';
+        const highlight = node.highlight ? ' highlight' : '';
+        html.push(`
+          <article class="topology-node${selected}${compact}${highlight}" data-id="${node.id}" role="button" tabindex="0"
+            style="left:${node.x}px;top:${node.y}px;width:${node.w}px;height:${node.h}px;--accent:${theme.accent};--soft:${theme.soft};--border:${theme.border};animation-delay:${Math.min(index * 24, 180)}ms">
+            <div class="node-head">
+              <div class="node-icon">${icon(node.icon)}</div>
+              <div class="node-title"><strong>${node.title}</strong><span>${node.subtitle || ''}</span></div>
+              ${statusPill(node.status || 'unknown')}
+            </div>
+            <div class="node-body">${renderBody(node)}</div>
+            ${renderFooter(node)}
+          </article>`);
+      });
+
+      el.nodeLayer.innerHTML = html.join('');
+      applySearch();
+    }
+
+    function edgeGeometry(from, to) {
+      const fromCenter = { x: from.x + from.w / 2, y: from.y + from.h / 2 };
+      const toCenter = { x: to.x + to.w / 2, y: to.y + to.h / 2 };
+      const dx = toCenter.x - fromCenter.x;
+      const dy = toCenter.y - fromCenter.y;
+
+      let start, end, path, labelX, labelY;
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        start = { x: from.x + (dx >= 0 ? from.w : 0), y: fromCenter.y };
+        end = { x: to.x + (dx >= 0 ? 0 : to.w), y: toCenter.y };
+        const midX = (start.x + end.x) / 2;
+        path = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x} ${end.y}`;
+        labelX = midX;
+        labelY = (start.y + end.y) / 2 - 10;
+      } else {
+        start = { x: fromCenter.x, y: from.y + (dy >= 0 ? from.h : 0) };
+        end = { x: toCenter.x, y: to.y + (dy >= 0 ? 0 : to.h) };
+        const midY = (start.y + end.y) / 2;
+        path = `M ${start.x} ${start.y} C ${start.x} ${midY}, ${end.x} ${midY}, ${end.x} ${end.y}`;
+        labelX = (start.x + end.x) / 2 + 8;
+        labelY = midY - 9;
+      }
+      return { path, labelX, labelY };
+    }
+
+    function renderEdges(view) {
+      const nodeMap = Object.fromEntries(view.nodes.map(n => [n.id, n]));
+      const markerDefs = Object.entries(themes).map(([key, t]) => `
+        <marker id="arrow-${key}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="${t.accent}"></path>
+        </marker>`).join('');
+
+      let svg = `<defs>${markerDefs}</defs>`;
+      (view.edges || []).forEach((edge, index) => {
+        const from = nodeMap[edge.from];
+        const to = nodeMap[edge.to];
+        if (!from || !to) return;
+        const g = edgeGeometry(from, to);
+        const theme = themes[edge.theme] || themes.blue;
+        const marker = `url(#arrow-${edge.theme || 'blue'})`;
+        svg += `<path class="edge${edge.flow ? ' flow' : ''}" data-from="${edge.from}" data-to="${edge.to}" d="${g.path}" stroke="${theme.accent}" marker-end="${marker}" ${edge.bidirectional ? `marker-start="${marker}"` : ''}></path>`;
+        if (edge.label) {
+          const width = Math.max(48, edge.label.length * 11 + 18);
+          svg += `<g class="edge-label"><rect x="${g.labelX - width / 2}" y="${g.labelY - 11}" width="${width}" height="22"></rect><text x="${g.labelX}" y="${g.labelY}">${edge.label}</text></g>`;
+        }
+      });
+      el.edgeLayer.innerHTML = svg;
+    }
+
+    function renderBreadcrumb() {
+      el.breadcrumb.innerHTML = state.path.map((id, index) => {
+        const current = index === state.path.length - 1;
+        return `${index ? '<span class="crumb-sep">/</span>' : ''}<button class="crumb ${current ? 'current' : ''}" data-index="${index}" ${current ? 'disabled' : ''}>${views[id].label}</button>`;
+      }).join('');
+      el.backBtn.disabled = state.path.length === 1;
+    }
+
+    function renderStepper(step) {
+      document.querySelectorAll('.step').forEach(item => {
+        const s = Number(item.dataset.step);
+        item.classList.toggle('active', s === step);
+        item.classList.toggle('done', s < step);
+      });
+    }
+
+    function renderInspector() {
+      const view = currentView();
+      const node = view.nodes.find(n => n.id === state.selectedId);
+      if (!node) {
+        el.inspectorBody.innerHTML = `
+          <div class="empty-inspector">
+            <div>
+              <div class="empty-icon">${icon('search')}</div>
+              <strong>选择一个节点</strong>
+              <p>进入第三层后，点击 Runtime、Broker、Bookie 等实例，可查看 CPU、内存、吞吐、延迟和最近事件。</p>
+            </div>
+          </div>`;
+        return;
+      }
+
+      const d = node.detail || makeDetail(node.id, node.subtitle || node.title);
+      const spark = sparkline(d.values || []);
+      const status = node.status || 'unknown';
+      const theme = themes[node.theme] || themes.blue;
+      el.inspectorBody.innerHTML = `
+        <div class="detail-hero">
+          <div class="detail-title-row">
+            <div class="detail-icon" style="color:${theme.accent};background:${theme.soft};border-color:${theme.border}">${icon(node.icon)}</div>
+            <div><h4>${node.title}</h4><p>${d.role}</p></div>
+            <div class="detail-status">${statusPill(status)}</div>
+          </div>
+          <div class="detail-address"><span>地址</span><code>${d.address}</code></div>
+        </div>
+
+        <div class="detail-section">
+          <h5>实时指标</h5>
+          <div class="detail-grid">
+            <div class="detail-kpi"><span>事件吞吐</span><strong>${d.events}</strong></div>
+            <div class="detail-kpi"><span>P95 延迟</span><strong>${d.latency} ms</strong></div>
+            <div class="detail-kpi"><span>活跃连接</span><strong>${d.connections}</strong></div>
+            <div class="detail-kpi"><span>节点版本</span><strong>${d.version}</strong></div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h5>资源使用</h5>
+          <div class="resource-row"><div class="resource-label"><span>CPU</span><strong>${d.cpu}%</strong></div><div class="resource-track ${d.cpu > 75 ? 'warning' : ''}"><span style="width:${d.cpu}%"></span></div></div>
+          <div class="resource-row"><div class="resource-label"><span>内存</span><strong>${d.memory}%</strong></div><div class="resource-track ${d.memory > 80 ? 'warning' : ''}"><span style="width:${d.memory}%"></span></div></div>
+        </div>
+
+        <div class="detail-section">
+          <h5>近 15 分钟吞吐趋势</h5>
+          <div class="spark-card"><div class="spark-head"><span>events / second</span><strong>${d.throughput}</strong></div>${spark}</div>
+        </div>
+
+        <div class="detail-section">
+          <h5>基础信息</h5>
+          <table class="detail-table">
+            <tr><td>所属视图</td><td>${view.label}</td></tr>
+            <tr><td>角色</td><td>${d.role}</td></tr>
+            <tr><td>运行时长</td><td>${d.uptime}</td></tr>
+            <tr><td>最后检查</td><td>刚刚</td></tr>
+          </table>
+        </div>
+
+        <div class="detail-section">
+          <h5>最近事件</h5>
+          <div class="log-list">
+            ${(d.logs || []).map((log, i) => `<div class="log-item ${status === 'warning' && i === 0 ? 'warning' : ''}"><time>${log[0]}</time><span>${log[1]}</span></div>`).join('')}
+          </div>
+        </div>`;
+    }
+
+    function sparkline(values) {
+      const width = 280, height = 58, pad = 3;
+      if (!values.length) return `<svg viewBox="0 0 ${width} ${height}"></svg>`;
+      const min = Math.min(...values), max = Math.max(...values);
+      const points = values.map((v, i) => {
+        const x = pad + (i / (values.length - 1)) * (width - pad * 2);
+        const y = height - pad - ((v - min) / Math.max(1, max - min)) * (height - pad * 2);
+        return [x, y];
+      });
+      const line = points.map((p, i) => `${i ? 'L' : 'M'} ${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
+      const area = `${line} L ${points[points.length - 1][0].toFixed(1)} ${height} L ${points[0][0].toFixed(1)} ${height} Z`;
+      return `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none"><defs><linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#60a5fa" stop-opacity="0.35"/><stop offset="1" stop-color="#60a5fa" stop-opacity="0"/></linearGradient></defs><path d="${area}" fill="url(#sparkFill)"></path><path d="${line}" fill="none" stroke="#2563eb" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>`;
+    }
+
+    function render() {
+      const view = currentView();
+      el.viewTitle.textContent = view.title;
+      el.viewSubtitle.textContent = view.subtitle;
+      el.stage.style.height = `${view.height || 700}px`;
+      el.edgeLayer.setAttribute('viewBox', `0 0 1180 ${view.height || 700}`);
+      renderEdges(view);
+      renderNodes(view);
+      renderBreadcrumb();
+      renderStepper(view.step || 1);
+      renderInspector();
+      requestAnimationFrame(() => {
+        const selected = el.nodeLayer.querySelector(`[data-id="${CSS.escape(state.selectedId || '')}"]`);
+        if (selected) selected.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+      });
+    }
+
+    function navigateTo(viewId) {
+      if (!views[viewId] || currentViewId() === viewId) return;
+      state.path.push(viewId);
+      state.selectedId = null;
+      state.search = '';
+      el.searchInput.value = '';
+      render();
+    }
+
+    function goBack() {
+      if (state.path.length <= 1) return;
+      state.path.pop();
+      state.selectedId = null;
+      render();
+    }
+
+    function goHome() {
+      state.path = ['overview'];
+      state.selectedId = null;
+      state.search = '';
+      el.searchInput.value = '';
+      render();
+    }
+
+    function selectNode(id) {
+      state.selectedId = id;
+      render();
+    }
+
+    function applySearch() {
+      const term = (state.search || '').trim().toLowerCase();
+      const view = currentView();
+      el.nodeLayer.querySelectorAll('.topology-node').forEach(card => {
+        const node = view.nodes.find(n => n.id === card.dataset.id);
+        const haystack = `${node.id} ${node.title} ${node.subtitle || ''} ${(node.items || []).map(i => typeof i === 'string' ? i : i.label).join(' ')}`.toLowerCase();
+        const hit = !term || haystack.includes(term);
+        card.classList.toggle('search-dim', Boolean(term) && !hit);
+        card.classList.toggle('search-hit', Boolean(term) && hit);
+      });
+    }
+
+    function highlightEdges(nodeId, active) {
+      el.edgeLayer.querySelectorAll(`.edge[data-from="${CSS.escape(nodeId)}"], .edge[data-to="${CSS.escape(nodeId)}"]`).forEach(path => path.classList.toggle('active', active));
+    }
+
+    function showToast(message) {
+      el.toast.textContent = message;
+      el.toast.classList.add('show');
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => el.toast.classList.remove('show'), 1900);
+    }
+
+    function refreshData() {
+      const throughput = (30.8 + Math.random() * 2.2).toFixed(1);
+      const latency = Math.round(16 + Math.random() * 5);
+      el.throughputTop.textContent = `${throughput}k/s`;
+      el.latencyTop.textContent = `${latency} ms`;
+      el.updatedAt.textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+      const view = currentView();
+      view.nodes.forEach(node => {
+        if (!node.detail) return;
+        const deltaCpu = Math.round(Math.random() * 6 - 3);
+        const deltaMem = Math.round(Math.random() * 4 - 2);
+        node.detail.cpu = Math.max(8, Math.min(96, node.detail.cpu + deltaCpu));
+        node.detail.memory = Math.max(15, Math.min(96, node.detail.memory + deltaMem));
+        node.detail.values = node.detail.values.slice(1).concat(Math.max(18, Math.min(92, node.detail.values.at(-1) + Math.round(Math.random() * 16 - 8))));
+      });
+      render();
+      showToast('拓扑指标已刷新');
+    }
+
+    function clearDemoTimers() {
+      state.demoTimers.forEach(clearTimeout);
+      state.demoTimers = [];
+      el.demoBtn.textContent = '▶ 演示下钻';
+    }
+
+    function playDemo() {
+      clearDemoTimers();
+      goHome();
+      el.demoBtn.textContent = '■ 停止演示';
+      const schedule = (delay, fn) => state.demoTimers.push(setTimeout(fn, delay));
+      schedule(900, () => navigateTo('eventmesh'));
+      schedule(2100, () => navigateTo('runtime'));
+      schedule(3400, () => selectNode('runtime-03'));
+      schedule(4800, () => {
+        el.demoBtn.textContent = '▶ 演示下钻';
+        showToast('演示完成：全局 → EventMesh → Runtime → 节点详情');
+      });
+    }
+
+    el.nodeLayer.addEventListener('click', event => {
+      const card = event.target.closest('.topology-node');
+      if (!card) return;
+      const node = currentView().nodes.find(n => n.id === card.dataset.id);
+      if (!node) return;
+      if (node.drill) navigateTo(node.drill);
+      else selectNode(node.id);
+    });
+
+    el.nodeLayer.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const card = event.target.closest('.topology-node');
+      if (!card) return;
+      event.preventDefault();
+      card.click();
+    });
+
+    el.nodeLayer.addEventListener('mouseover', event => {
+      const card = event.target.closest('.topology-node');
+      if (card) highlightEdges(card.dataset.id, true);
+    });
+
+    el.nodeLayer.addEventListener('mouseout', event => {
+      const card = event.target.closest('.topology-node');
+      if (card) highlightEdges(card.dataset.id, false);
+    });
+
+    el.breadcrumb.addEventListener('click', event => {
+      const button = event.target.closest('.crumb');
+      if (!button || button.classList.contains('current')) return;
+      const index = Number(button.dataset.index);
+      state.path = state.path.slice(0, index + 1);
+      state.selectedId = null;
+      render();
+    });
+
+    el.backBtn.addEventListener('click', goBack);
+    el.homeBtn.addEventListener('click', goHome);
+    el.refreshBtn.addEventListener('click', refreshData);
+    el.closeInspector.addEventListener('click', () => { state.selectedId = null; render(); });
+    el.searchInput.addEventListener('input', event => { state.search = event.target.value; applySearch(); });
+    el.demoBtn.addEventListener('click', () => {
+      if (el.demoBtn.textContent.includes('停止')) {
+        clearDemoTimers();
+        showToast('已停止演示');
+      } else {
+        playDemo();
+      }
+    });
+
+    el.brandIcon.innerHTML = icon('mesh');
+    render();
+  </script>
+</body>
+</html>
