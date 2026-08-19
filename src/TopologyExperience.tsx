@@ -14,6 +14,8 @@ import {
   ExclamationCircleOutlined,
   FolderOpenOutlined,
   FolderOutlined,
+  FullscreenExitOutlined,
+  FullscreenOutlined,
   InfoCircleOutlined,
   QuestionCircleOutlined,
   ReloadOutlined,
@@ -362,20 +364,30 @@ function EventMeshCard({ component, metadata, language, onOpen, onHover }) {
   </article>;
 }
 
+function exitFullscreenSafely() {
+  if (!document.fullscreenElement || typeof document.exitFullscreen !== "function") return;
+  document.exitFullscreen().catch(() => {});
+}
+
+// Global-stage geometry shared between the flow-edge math below and the
+// .et-global-* / .et-store-* rules in topology-experience.css; keep in sync.
+const GLOBAL_STAGE_WIDTH = 1040;
+const GLOBAL_CORE_CENTER = 510;
+
 function GlobalFlowEdges({ stores, activeId, hasAccess, hasResources }) {
   const singleStore = stores.length === 1;
   const storeWidth = 260;
   const storeGap = 15;
   const totalWidth = stores.length ? stores.length * storeWidth + (stores.length - 1) * storeGap : 0;
-  const storeStart = (1180 - totalWidth) / 2;
-  const targets = stores.map((_, index) => singleStore ? 600 : storeStart + index * (storeWidth + storeGap) + storeWidth / 2);
-  const firstTarget = targets[0] ?? 590;
-  const lastTarget = targets.at(-1) ?? 590;
-  const branchLeft = Math.min(600, firstTarget);
-  const branchRight = Math.max(600, lastTarget);
+  const storeStart = (GLOBAL_STAGE_WIDTH - totalWidth) / 2;
+  const targets = stores.map((_, index) => singleStore ? GLOBAL_CORE_CENTER : storeStart + index * (storeWidth + storeGap) + storeWidth / 2);
+  const firstTarget = targets[0] ?? GLOBAL_CORE_CENTER;
+  const lastTarget = targets.at(-1) ?? GLOBAL_CORE_CENTER;
+  const branchLeft = Math.min(GLOBAL_CORE_CENTER, firstTarget);
+  const branchRight = Math.max(GLOBAL_CORE_CENTER, lastTarget);
   return <div className="et-stage-connectors" aria-hidden="true">
-    {hasAccess && <span className={`et-flow-edge access-line ${activeId === "access" || activeId === "eventmesh" ? "active" : ""}`}><span className="et-edge-head"><ArrowRightOutlined /></span><span className="et-flow-arrow"><ArrowRightOutlined /></span></span>}
-    {hasResources && <span className={`et-flow-edge resource-line ${activeId === "resources" || activeId === "eventmesh" ? "active" : ""}`}><span className="et-edge-head"><ArrowRightOutlined /></span><span className="et-flow-arrow"><ArrowRightOutlined /></span></span>}
+    {hasAccess && <span className={`et-flow-edge access-line ${activeId === "access" || activeId === "eventmesh" ? "active" : ""}`}><span className="et-edge-head"><ArrowRightOutlined /></span></span>}
+    {hasResources && <span className={`et-flow-edge resource-line ${activeId === "resources" || activeId === "eventmesh" ? "active" : ""}`}><span className="et-edge-head"><ArrowRightOutlined /></span></span>}
     {!!stores.length && <span className={`et-store-network ${singleStore ? "single" : "branched"}`}>
       {singleStore ? <i className={`et-store-single ${stores[0].tone} ${activeId === "eventmesh" || activeId === stores[0].id ? "active" : ""}`} style={{ left: targets[0] }}><span className="et-store-head"><ArrowDownOutlined /></span></i> : <>
         <i className="et-store-trunk" />
@@ -513,6 +525,8 @@ export function TopologyExperience({ cluster, topology, runtimes = [], topics = 
   const [searchParams, setSearchParams] = useSearchParams();
   const demoTimers = useRef([]);
   const [demoRunning, setDemoRunning] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const model = useMemo(() => buildComponents({ cluster, topology, runtimes, topics, groups, language }), [cluster, groups, language, runtimes, topics, topology]);
   const treeRoot = useMemo(() => buildResourceTree({ cluster, topology, runtimes, topics, groups, language }), [cluster, groups, language, runtimes, topics, topology]);
   const mode = searchParams.get("mode") === "tree" ? "tree" : "graph";
@@ -551,12 +565,18 @@ export function TopologyExperience({ cluster, topology, runtimes = [], topics = 
   const goBack = () => {
     if (mode === "tree") {
       if (selectedTreeNode?.parentKey) updateParams({ node: selectedTreeNode.parentKey });
-      else onExit();
+      else {
+        exitFullscreenSafely();
+        onExit();
+      }
       return;
     }
     if (selectedNode) updateParams({ node: null });
     else if (currentComponent) updateParams({ component: null, node: null });
-    else onExit();
+    else {
+      exitFullscreenSafely();
+      onExit();
+    }
   };
   const goGlobal = () => updateParams({ component: null, node: mode === "tree" ? treeRoot.key : null, q: null });
   const stopDemo = () => {
@@ -579,8 +599,27 @@ export function TopologyExperience({ cluster, topology, runtimes = [], topics = 
     ];
   };
   useEffect(() => () => demoTimers.current.forEach((timer) => window.clearTimeout(timer)), []);
+  useEffect(() => {
+    const element = rootRef.current;
+    const syncFullscreen = () => setIsFullscreen(rootRef.current != null && document.fullscreenElement === rootRef.current);
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreen);
+      if (element != null && document.fullscreenElement === element) exitFullscreenSafely();
+    };
+  }, []);
+  const toggleFullscreen = () => {
+    const element = rootRef.current;
+    if (!element) return;
+    if (document.fullscreenElement) {
+      exitFullscreenSafely();
+      return;
+    }
+    if (typeof element.requestFullscreen !== "function") return;
+    element.requestFullscreen().catch(() => {});
+  };
   const step = selectedNode ? 3 : currentComponent ? 2 : 1;
-  return <div className="topology-experience">
+  return <div className="topology-experience" ref={rootRef}>
     <header className="et-topbar">
       <div className="et-brand"><span><img src={eventMeshLogo} alt="EventMesh" /></span><div><strong>EventMesh {language === "zh" ? "集群图" : "Cluster Graph"}</strong><small>Cluster topology &amp; observability dashboard</small></div></div>
       <span className="et-environment"><i />{cluster.region && cluster.region !== "—" ? cluster.region : (language === "zh" ? "当前环境" : "Current environment")}</span>
@@ -602,7 +641,7 @@ export function TopologyExperience({ cluster, topology, runtimes = [], topics = 
     </div>
     <main className="et-workbench">
       <section className="et-main-panel">
-        <header className="et-panel-heading"><div><h1>{mode === "tree" ? (language === "zh" ? "资源树" : "Resource tree") : currentComponent?.title ?? (language === "zh" ? "全局拓扑" : "Global topology")}</h1><p>{mode === "tree" ? (language === "zh" ? "按真实依赖和资源归属快速定位集群、Runtime 与消息资源" : "Locate clusters, Runtimes, and messaging resources by dependency and ownership") : currentComponent ? (language === "zh" ? "查看组件内部集群，选择节点后在右侧检查资源数据" : "Inspect the internal cluster and select a node for resource data") : (language === "zh" ? "先看系统边界：应用如何接入、EventMesh 如何转发、事件最终流向哪里" : "Understand system boundaries, EventMesh routing, and event destinations")}</p></div>{mode === "graph" && <div><button type="button" className="et-demo" onClick={playDemo}>{demoRunning ? "■" : "▶"} {language === "zh" ? (demoRunning ? "停止演示" : "演示下钻") : (demoRunning ? "Stop demo" : "Demo drill-down")}</button><button type="button" onClick={goGlobal}>⌂ {language === "zh" ? "回到全局" : "Global"}</button></div>}</header>
+        <header className="et-panel-heading"><div><h1>{mode === "tree" ? (language === "zh" ? "资源树" : "Resource tree") : currentComponent?.title ?? (language === "zh" ? "全局拓扑" : "Global topology")}</h1><p>{mode === "tree" ? (language === "zh" ? "按真实依赖和资源归属快速定位集群、Runtime 与消息资源" : "Locate clusters, Runtimes, and messaging resources by dependency and ownership") : currentComponent ? (language === "zh" ? "查看组件内部集群，选择节点后在右侧检查资源数据" : "Inspect the internal cluster and select a node for resource data") : (language === "zh" ? "先看系统边界：应用如何接入、EventMesh 如何转发、事件最终流向哪里" : "Understand system boundaries, EventMesh routing, and event destinations")}</p></div><div>{mode === "graph" && <><button type="button" className="et-demo" onClick={playDemo}>{demoRunning ? "■" : "▶"} {language === "zh" ? (demoRunning ? "停止演示" : "演示下钻") : (demoRunning ? "Stop demo" : "Demo drill-down")}</button><button type="button" onClick={goGlobal}>⌂ {language === "zh" ? "回到全局" : "Global"}</button></>}<button type="button" onClick={toggleFullscreen} aria-pressed={isFullscreen}>{isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />} {language === "zh" ? (isFullscreen ? "退出全屏" : "全屏") : (isFullscreen ? "Exit fullscreen" : "Fullscreen")}</button></div></header>
         <div className={`et-legend ${mode === "tree" ? "tree" : ""}`}><span><b>{language === "zh" ? "状态" : "Status"}</b></span><StatusLegendItem status="Healthy" language={language} /><StatusLegendItem status="Warning" language={language} /><StatusLegendItem status="Error" language={language} /><StatusLegendItem status="Unknown" language={language} />{mode === "tree" ? <em><FolderOutlined /> {language === "zh" ? "资源目录仅用于定位，不代表真实拓扑边" : "Resource directories aid discovery and do not represent topology edges"}</em> : <em>{language === "zh" ? "点击集群卡片逐层进入；点击节点查看右侧详情" : "Open cluster cards, then select nodes for details"}</em>}</div>
         {error && <Alert className="et-api-alert" type="warning" showIcon title={language === "zh" ? "部分拓扑关系暂不可用" : "Some topology relationships are unavailable"} description={error} />}
         <div className={`et-canvas-scroll ${mode === "tree" ? "tree" : ""}`}>
