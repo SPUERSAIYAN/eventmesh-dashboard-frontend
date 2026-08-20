@@ -1,11 +1,12 @@
-export type ComponentClusterType = "runtime" | "meta" | "kafka" | "rocketmq";
+import type { ComponentClusterType, ResourceStatus } from "./clusterDefinitions";
+export type { ComponentClusterType } from "./clusterDefinitions";
 
 export type ComponentNode = {
   id: string;
   name: string;
   role: string;
   address: string;
-  status: "healthy" | "warning" | "unknown";
+  status: ResourceStatus;
   cpu?: number;
   memory?: number;
   rate?: string;
@@ -17,7 +18,7 @@ export type ComponentCluster = {
   name: string;
   type: ComponentClusterType;
   description: string;
-  status: "healthy" | "warning" | "unknown";
+  status: ResourceStatus;
   region: string;
   version: string;
   nodes: ComponentNode[];

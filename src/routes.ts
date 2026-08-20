@@ -1,3 +1,5 @@
+import { isComponentPanel, isStorageEngine } from "./clusterDefinitions";
+
 const clusterViews = new Set(["summary", "overview", "topology", "relations", "runtime", "meta", "storage", "topics", "connections", "consumers", "operations", "messages", "security", "configuration"]);
 
 export function normalizeClusterView(view, legacyTab = null) {
@@ -26,23 +28,14 @@ export function clusterResourcePath(clusterKey, view = "overview", search = {}) 
   return `/clusters/${encodeURIComponent(String(clusterKey))}/${normalizedView}${query ? `?${query}` : ""}`;
 }
 
-const storageEngines = new Set(["kafka", "rocketmq"]);
-const storagePanels = new Set(["overview", "brokers", "topics", "groups", "relations"]);
-
 export function storageClusterConsolePath(eventMeshId, engine, storageClusterId, panel = "overview") {
-  const normalizedEngine = storageEngines.has(engine) ? engine : "kafka";
-  const normalizedPanel = storagePanels.has(panel) ? panel : "overview";
+  const normalizedEngine = isStorageEngine(engine) ? engine : "kafka";
+  const normalizedPanel = isComponentPanel(normalizedEngine, panel) ? panel : "overview";
   return `/clusters/${encodeURIComponent(String(eventMeshId))}/storage/${normalizedEngine}/${encodeURIComponent(String(storageClusterId))}/${normalizedPanel}`;
 }
 
-const componentKinds = new Set(["runtime", "meta"]);
-const componentPanels = {
-  runtime: new Set(["overview", "instances", "connections", "topics", "relations"]),
-  meta: new Set(["overview", "nodes", "registry", "relations"]),
-};
-
 export function componentClusterConsolePath(eventMeshId, kind, componentClusterId, panel = "overview") {
-  const normalizedKind = componentKinds.has(kind) ? kind : "runtime";
-  const normalizedPanel = componentPanels[normalizedKind].has(panel) ? panel : "overview";
+  const normalizedKind = kind === "meta" ? "meta" : "runtime";
+  const normalizedPanel = isComponentPanel(normalizedKind, panel) ? panel : "overview";
   return `/clusters/${encodeURIComponent(String(eventMeshId))}/${normalizedKind}/${encodeURIComponent(String(componentClusterId))}/${normalizedPanel}`;
 }

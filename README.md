@@ -17,45 +17,36 @@
 
 生产页面不会回退到 mock。后端没有提供的数据会显示为“暂无数据”或“不可用”，不会生成吞吐量、CPU、内存等模拟指标。
 
-## Docker 启动
+## 本地启动
 
-复制 `.env.example` 为 `.env`，至少设置强数据库密码、32 字节以上的 JWT 密钥和首次启动管理员密码，然后运行：
+安装依赖并启动 Vite 开发服务器：
 
 ```bash
-docker compose up --build -d
+npm install
+npm run dev
 ```
 
-访问：`http://127.0.0.1:4173`
+访问：`http://127.0.0.1:5173`
 
-默认 Compose 包含 MySQL 8、Java 17 后端和 Nginx 前端，同源代理 `/eventmesh/dashboard`。MySQL 使用命名卷持久化；后端通过 Flyway 初始化鉴权表。首次空库启动后，管理员账号来自 `.env` 中的 `AUTH_BOOTSTRAP_*` 配置。
+开发服务器会将 `/eventmesh/dashboard` 代理到 `http://127.0.0.1:9898`。可通过 `VITE_EVENTMESH_API_PROXY_TARGET` 指定其他后端地址。
 
-如需只在开发环境写入示例业务数据：
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.dev-data.yml up --build -d
-```
-
-生产启动不要叠加 `docker-compose.dev-data.yml`。
-
-## 本地验证
-
-前端：
+## 构建与预览
 
 ```bash
+npm run typecheck
 npm test
 npm run build
+npm run preview
 ```
 
-后端：
+生产构建输出到 `dist/client`。项目同时保留 Sites 所需的 `dist/server/index.js` 和 `dist/.openai/hosting.json`。
+
+## 后端验证
+
+后端项目位于相邻目录 `../eventmesh-dashboard`，需要 Java 17：
 
 ```bash
 JAVA_HOME=/path/to/java17 ./mvnw -pl eventmesh-dashboard-console -am package
-```
-
-本机已经构建后端 JAR 时，可使用 `docker-compose.local-build.yml` 加速容器验收：
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.local-build.yml up --build -d
 ```
 
 接口映射见 [docs/api-contracts.md](docs/api-contracts.md)，V2 需求覆盖和暂缓项见 [docs/v2-capability-matrix.md](docs/v2-capability-matrix.md)，视觉验收记录见 [design-qa.md](design-qa.md)。

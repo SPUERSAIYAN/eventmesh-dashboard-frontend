@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 export const MOCK_WRITABLE_RESOURCE_KEY = "eventmesh-mock-writable-resources-v1";
 
 export const defaultWritableResourceState = () => ({ version: 1, nodes: [], topics: [], physicalTopics: [], consumers: [] });
@@ -13,12 +11,6 @@ export function normalizeWritableResourceState(value) {
     physicalTopics: Array.isArray(value.physicalTopics) ? value.physicalTopics : [],
     consumers: Array.isArray(value.consumers) ? value.consumers : [],
   };
-}
-
-export function readWritableResourceState() {
-  if (typeof window === "undefined") return defaultWritableResourceState();
-  try { return normalizeWritableResourceState(JSON.parse(window.localStorage.getItem(MOCK_WRITABLE_RESOURCE_KEY) || "null")); }
-  catch { return defaultWritableResourceState(); }
 }
 
 function appendUnique(state, key, item, identity) {
@@ -46,22 +38,6 @@ export function addWritableTopic(state, item) {
     createdAt: item.createdAt,
     source: "eventmesh",
   });
-}
-
-export function useMockWritableResources() {
-  const [state, setState] = useState(readWritableResourceState);
-  const update = (producer) => setState((current) => {
-    const next = producer(current);
-    if (next !== current && typeof window !== "undefined") window.localStorage.setItem(MOCK_WRITABLE_RESOURCE_KEY, JSON.stringify(next));
-    return next;
-  });
-  return {
-    state,
-    addNode: (item) => update((current) => addWritableNode(current, item)),
-    addTopic: (item) => update((current) => addWritableTopic(current, item)),
-    addPhysicalTopic: (item) => update((current) => addWritablePhysicalTopic(current, item)),
-    addConsumer: (item) => update((current) => addWritableConsumer(current, item)),
-  };
 }
 
 export function ensureSimName(value, fallback) {

@@ -1,42 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
-import { ApartmentOutlined, CheckCircleOutlined, CloudServerOutlined, ClusterOutlined, CopyOutlined, DashboardOutlined, DatabaseOutlined, DeleteOutlined, ExclamationCircleOutlined, HddOutlined, LinkOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SettingOutlined, TeamOutlined } from "@ant-design/icons";
+import { ApartmentOutlined, CheckCircleOutlined, CloudServerOutlined, ClusterOutlined, CopyOutlined, DashboardOutlined, DatabaseOutlined, DeleteOutlined, ExclamationCircleOutlined, HddOutlined, LinkOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, TeamOutlined } from "@ant-design/icons";
 import { App as AntApp, Button, Checkbox, Input, Modal, Select, Tag } from "antd";
 import ReactECharts from "echarts-for-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { mockClusters, mockMessageSeries } from "./mockClusterData";
-import {
-  MOCK_RELATION_STORAGE_KEY,
-  addClusterRelations,
-  defaultMockRelationState,
-  inheritClusterRelations,
-  mockComponentClusters,
-  normalizeMockRelationState,
-  removeClusterRelation,
-} from "./mockClusterRelations";
+import { mockComponentClusters } from "./mockClusterRelations";
 import { TopologyExperience } from "./TopologyExperience";
 import { componentClusterConsolePath, storageClusterConsolePath } from "./routes";
 import { CreateConsumerModal, CreateTopicModal } from "./MockResourceCreateModals";
-import { useMockWritableResources } from "./mockWritableResources";
+import { COMPONENT_TYPE_LABELS } from "./clusterDefinitions";
+import { ResourceTable } from "./components/ResourceTable";
+import { StatusBadge } from "./components/StatusBadge";
+import { useMockRelations, useMockWritableResources } from "./mockClusterStore";
 
-const statusMap = { healthy:{ label:"正常", icon:<CheckCircleOutlined/> }, warning:{ label:"需关注", icon:<ExclamationCircleOutlined/> }, unknown:{ label:"状态未知", icon:<SettingOutlined/> } };
 const MockTag = () => <Tag className="mock-source-tag">MOCK DATA</Tag>;
-function Status({ value }) { const item=statusMap[value]??statusMap.unknown; return <span className={`mock-status ${value}`}>{item.icon}{item.label}</span>; }
+const Status = StatusBadge;
 function UsageBar({ label, value }) { const tone=value>=80?"critical":value>=70?"warning":"normal"; return <div className="usage-row"><span>{label}</span><div><i className={tone} style={{width:`${value}%`}}/></div><strong>{value}%</strong></div>; }
 const formatRate=(value)=>value>=1000?`${(value/1000).toFixed(1)}K/s`:`${value}/s`;
-const componentTypeCopy={runtime:"Runtime",meta:"Meta",kafka:"Kafka",rocketmq:"RocketMQ"};
-
-function readRelationState(){ if(typeof window==="undefined")return defaultMockRelationState(); try{return normalizeMockRelationState(JSON.parse(window.localStorage.getItem(MOCK_RELATION_STORAGE_KEY)||"null"));}catch{return defaultMockRelationState();} }
-function writeRelationState(state){ if(typeof window!=="undefined")window.localStorage.setItem(MOCK_RELATION_STORAGE_KEY,JSON.stringify(state)); }
-function useMockRelations(){
-  const [state,setState]=useState(readRelationState);
-  const update=(producer)=>setState((current)=>{const next=producer(current);writeRelationState(next);return next;});
-  return {
-    relations:state.relations,
-    addRelations:(eventMeshClusterId,componentIds)=>update((current)=>addClusterRelations(current,eventMeshClusterId,componentIds)),
-    removeRelation:(relationId)=>update((current)=>removeClusterRelation(current,relationId)),
-    inheritRelations:(sourceId,targetId)=>update((current)=>inheritClusterRelations(current,sourceId,targetId)),
-  };
-}
+const componentTypeCopy=COMPONENT_TYPE_LABELS;
 
 const copyStateKey="eventmesh-mock-copy-state-v2";
 const emptyCopyState={tasks:[],copiedClusters:[]};
@@ -145,7 +126,8 @@ function RelationManager({title,description,types,relations,currentClusterId,eve
 function AddNodeModal({open,onClose,onAdd}){ const {message}=AntApp.useApp(); const [role,setRole]=useState("Runtime"); const [name,setName]=useState("codex-sim-runtime-new-01"); const [spec,setSpec]=useState("4 vCPU / 8 GiB"); const submit=()=>{onAdd({id:name,name,role,address:"待分配",cpu:0,memory:0,rate:"0/s",status:"unknown"});message.success(`节点 ${name} 已加入模拟集群`);onClose();}; return <Modal title="添加集群节点" open={open} onCancel={onClose} onOk={submit} okText="添加节点" cancelText="取消" okButtonProps={{disabled:!name.trim()}}><div className="mock-flow-note"><PlusOutlined/><div><strong>添加到当前关联组件</strong><span>这是前端模拟节点，名称必须保留 codex-sim- 前缀。</span></div></div><div className="add-node-form"><label>节点角色<Select value={role} onChange={(value)=>{setRole(value);setName(value==="Runtime"?"codex-sim-runtime-new-01":"codex-sim-meta-new-01");}} options={[{value:"Runtime",label:"Runtime 节点"},{value:"Meta",label:"Meta 节点"}]}/></label><label>节点名称<Input value={name} onChange={(event)=>setName(event.target.value.startsWith("codex-sim-")?event.target.value:`codex-sim-${event.target.value}`)}/></label><label>资源规格<Select value={spec} onChange={setSpec} options={["2 vCPU / 4 GiB","4 vCPU / 8 GiB","8 vCPU / 16 GiB"].map((value)=>({value,label:value}))}/></label></div></Modal>; }
 
 function ModuleTable({title,description,columns,rows,action=null}){
-  return <section className="panel mock-tab-panel mock-module-panel"><div className="mock-section-title"><div><h2>{title}</h2><p>{description}</p></div>{action}</div><div className="resource-table-wrap"><table className="resource-table mock-module-table"><thead><tr>{columns.map((column)=><th key={column}>{column}</th>)}</tr></thead><tbody>{rows.map((row,index)=><tr key={`${title}-${index}`}>{row.map((cell,cellIndex)=><td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div></section>;
+  const normalizedRows=rows.map((cells,index)=>({key:`${title}-${index}`,cells}));
+  return <ResourceTable title={title} description={description} columns={columns} rows={normalizedRows} action={action} searchable={false} showRefresh={false} sectionClassName="panel mock-tab-panel mock-module-panel" tableClassName="resource-table mock-module-table"/>;
 }
 
 function buildMockTopology(cluster,relations){

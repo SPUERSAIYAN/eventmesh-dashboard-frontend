@@ -10,39 +10,19 @@ import {
   LinkOutlined,
   PlusOutlined,
   ReloadOutlined,
-  SearchOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
-import { Button, Input, Select, Tag } from "antd";
+import { Button, Select, Tag } from "antd";
 import ReactECharts from "echarts-for-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { mockClusters } from "./mockClusterData";
-import {
-  MOCK_RELATION_STORAGE_KEY,
-  defaultMockRelationState,
-  mockComponentClusters,
-  normalizeMockRelationState,
-} from "./mockClusterRelations";
+import { mockComponentClusters } from "./mockClusterRelations";
 import { storageClusterConsolePath } from "./routes";
 import { CreateNodeModal, CreateTopicModal } from "./MockResourceCreateModals";
-import { useMockWritableResources } from "./mockWritableResources";
-
-const allowedPanels = ["overview", "brokers", "topics", "groups", "relations"];
-const panelLabels = { overview: "概要", brokers: "Broker", topics: "Topic", groups: "消费组", relations: "关联 EventMesh" };
-
-function readRelations() {
-  if (typeof window === "undefined") return defaultMockRelationState().relations;
-  try {
-    return normalizeMockRelationState(JSON.parse(window.localStorage.getItem(MOCK_RELATION_STORAGE_KEY) || "null")).relations;
-  } catch {
-    return defaultMockRelationState().relations;
-  }
-}
-
-function StorageStatus({ value }) {
-  const healthy = value === "healthy";
-  return <span className={`storage-console-status ${healthy ? "healthy" : "warning"}`}>{healthy ? <CheckCircleOutlined /> : <ExclamationCircleOutlined />}{healthy ? "正常" : "需关注"}</span>;
-}
+import { COMPONENT_DEFINITIONS, isComponentPanel } from "./clusterDefinitions";
+import { ResourceTable } from "./components/ResourceTable";
+import { StatusBadge } from "./components/StatusBadge";
+import { useMockRelations, useMockWritableResources } from "./mockClusterStore";
 
 function physicalTopics(engine, clusterId) {
   const names = engine === "kafka"
@@ -84,25 +64,20 @@ function StorageRateChart({ engine }) {
   return <ReactECharts option={option} style={{ height: 270 }} />;
 }
 
-function ResourceTable({ title, description, columns, rows, searchPlaceholder = "搜索资源", action=null }) {
-  const [query, setQuery] = useState("");
-  const filtered = rows.filter((row) => row.search.toLowerCase().includes(query.toLowerCase()));
-  return <section className="panel storage-resource-panel"><div className="storage-resource-toolbar"><div><h2>{title}</h2><p>{description}</p></div><div><Input allowClear prefix={<SearchOutlined />} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} /><Button icon={<ReloadOutlined />}>刷新</Button>{action}</div></div><div className="resource-table-wrap"><table className="resource-table storage-resource-table"><thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{filtered.map((row) => <tr key={row.key}>{row.cells.map((cell, index) => <td key={index}>{cell}</td>)}</tr>)}</tbody></table>{!filtered.length && <div className="storage-console-empty"><SearchOutlined /><strong>未找到匹配资源</strong><span>请调整搜索条件。</span></div>}</div></section>;
-}
-
 export function MockStorageClusterConsole() {
   const navigate = useNavigate();
   const { clusterId, engine, storageClusterId, panel } = useParams();
   const { state: writableState, addNode, addPhysicalTopic } = useMockWritableResources();
+  const { relations } = useMockRelations();
   const [brokerOpen, setBrokerOpen] = useState(false);
   const [topicOpen, setTopicOpen] = useState(false);
   const normalizedEngine = engine === "rocketmq" ? "rocketmq" : "kafka";
-  const activePanel = allowedPanels.includes(panel) ? panel : "overview";
+  const config = COMPONENT_DEFINITIONS[normalizedEngine];
+  const activePanel = isComponentPanel(normalizedEngine, panel) ? panel : "overview";
   const baseStorage = mockComponentClusters.find((item) => item.id === storageClusterId && item.type === normalizedEngine);
   const storage = baseStorage ? { ...baseStorage, nodes: [...baseStorage.nodes, ...writableState.nodes.filter((item) => item.clusterId === baseStorage.id)] } : null;
-  const relations = useMemo(readRelations, []);
   useEffect(() => {
-    if (panel && !allowedPanels.includes(panel) && storage) navigate(storageClusterConsolePath(clusterId, normalizedEngine, storage.id), { replace: true });
+    if (panel && !isComponentPanel(normalizedEngine, panel) && storage) navigate(storageClusterConsolePath(clusterId, normalizedEngine, storage.id), { replace: true });
   }, [clusterId, navigate, normalizedEngine, panel, storage]);
   if (!storage) return <section className="panel storage-console-missing"><HddOutlined /><h1>未找到存储集群</h1><p>该集群不存在，或类型与访问路径不一致。</p><Button type="primary" onClick={() => navigate(`/clusters/${clusterId}/storage?section=${normalizedEngine}`)}>返回集群列表</Button></section>;
 
@@ -113,9 +88,9 @@ export function MockStorageClusterConsole() {
   const storageRelations = relations.filter((item) => item.componentClusterId === storage.id);
   const healthyBrokers = storage.nodes.filter((item) => item.status === "healthy").length;
   const panelPath = (nextPanel) => storageClusterConsolePath(clusterId, normalizedEngine, storage.id, nextPanel);
-  const brokerRows = storage.nodes.map((node, index) => ({ key: node.id, search: `${node.name} ${node.address} ${node.role}`, cells: [<span className="storage-primary-cell"><DatabaseOutlined /><span><strong>{node.name}</strong><small>{node.id}</small></span></span>, node.role, node.address, isKafka ? `broker-${index + 1}` : index === 0 ? "Master" : "Slave", `${38 + index * 5}% / ${52 + index * 4}%`, <StorageStatus value={node.status} />] }));
-  const topicRows = topics.map((topic) => ({ key: topic.id, search: topic.name, cells: [<span className="storage-primary-cell"><AppstoreOutlined /><strong>{topic.name}</strong></span>, topic.partitions, topic.replicas, topic.inRate, topic.outRate, topic.storage, <StorageStatus value={topic.status} />] }));
-  const groupRows = groups.map((group) => ({ key: group.name, search: `${group.name} ${group.topic}`, cells: [<span className="storage-primary-cell"><TeamOutlined /><strong>{group.name}</strong></span>, group.topic, group.members, group.rate, group.lag, <StorageStatus value={group.status} />] }));
+  const brokerRows = storage.nodes.map((node, index) => ({ key: node.id, search: `${node.name} ${node.address} ${node.role}`, cells: [<span className="storage-primary-cell"><DatabaseOutlined /><span><strong>{node.name}</strong><small>{node.id}</small></span></span>, node.role, node.address, isKafka ? `broker-${index + 1}` : index === 0 ? "Master" : "Slave", `${38 + index * 5}% / ${52 + index * 4}%`, <StatusBadge value={node.status} className="storage-console-status" />] }));
+  const topicRows = topics.map((topic) => ({ key: topic.id, search: topic.name, cells: [<span className="storage-primary-cell"><AppstoreOutlined /><strong>{topic.name}</strong></span>, topic.partitions, topic.replicas, topic.inRate, topic.outRate, topic.storage, <StatusBadge value={topic.status} className="storage-console-status" />] }));
+  const groupRows = groups.map((group) => ({ key: group.name, search: `${group.name} ${group.topic}`, cells: [<span className="storage-primary-cell"><TeamOutlined /><strong>{group.name}</strong></span>, group.topic, group.members, group.rate, group.lag, <StatusBadge value={group.status} className="storage-console-status" />] }));
   const relationRows = storageRelations.map((relation) => { const eventMesh = mockClusters.find((item) => item.id === relation.eventMeshClusterId); return { key: relation.id, search: `${relation.eventMeshClusterId} ${eventMesh?.description ?? ""}`, cells: [<span className="storage-primary-cell"><ClusterOutlined /><span><strong>{eventMesh?.name ?? relation.eventMeshClusterId}</strong><small>{eventMesh?.description ?? "复制或外部 EventMesh 集群"}</small></span></span>, "EventMesh → 存储集群", <span className="storage-console-status healthy"><LinkOutlined />关联生效</span>, new Date(relation.createdAt).toLocaleString("zh-CN", { hour12: false }), <Button type="link" onClick={() => navigate(`/clusters/${relation.eventMeshClusterId}/topology`)}>查看拓扑</Button>] }; });
 
   const overview = <div className="storage-console-overview">
@@ -132,5 +107,5 @@ export function MockStorageClusterConsole() {
     relations: <ResourceTable title="关联 EventMesh" description="当前存储集群被哪些 EventMesh 集群使用" columns={["EventMesh 集群", "关系", "状态", "建立时间", "操作"]} rows={relationRows} searchPlaceholder="搜索 EventMesh 集群" />,
   };
 
-  return <div className="page storage-cluster-console"><section className="storage-console-hero"><div><button onClick={() => navigate(`/clusters/${clusterId}/storage?section=${normalizedEngine}`)}>存储集群 / {engineName} 集群 /</button><div><h1>{storage.name}</h1><StorageStatus value={storage.status} /><Tag className="mock-source-tag">MOCK DATA</Tag></div><p>{storage.description}</p><span>{engineName} {storage.version} · {storage.region} · {storage.nodes.length} Brokers</span></div><div className="storage-console-actions"><Button icon={<ReloadOutlined />}>刷新</Button><Button type="primary" icon={<ApartmentOutlined />} onClick={() => navigate(`/clusters/${clusterId}/topology?node=cluster-${storage.id}`)}>查看拓扑</Button></div></section><nav className="storage-console-tabs" aria-label={`${engineName} 控制台导航`}>{allowedPanels.map((item) => <button key={item} className={item === activePanel ? "active" : ""} onClick={() => navigate(panelPath(item))}>{panelLabels[item]}</button>)}</nav>{panels[activePanel]}<CreateNodeModal open={brokerOpen} onClose={()=>setBrokerOpen(false)} kind="broker" cluster={storage} existingNames={storage.nodes.map((item)=>item.name)} onCreate={addNode}/><CreateTopicModal open={topicOpen} onClose={()=>setTopicOpen(false)} eventMeshClusterId={clusterId} storageClusters={[storage]} fixedStorage={storage} existingNames={topics.map((item)=>item.name)} onCreate={addPhysicalTopic}/></div>;
+  return <div className="page storage-cluster-console"><section className="storage-console-hero"><div><button onClick={() => navigate(`/clusters/${clusterId}/storage?section=${normalizedEngine}`)}>存储集群 / {engineName} 集群 /</button><div><h1>{storage.name}</h1><StatusBadge value={storage.status} className="storage-console-status" /><Tag className="mock-source-tag">MOCK DATA</Tag></div><p>{storage.description}</p><span>{engineName} {storage.version} · {storage.region} · {storage.nodes.length} Brokers</span></div><div className="storage-console-actions"><Button icon={<ReloadOutlined />}>刷新</Button><Button type="primary" icon={<ApartmentOutlined />} onClick={() => navigate(`/clusters/${clusterId}/topology?node=cluster-${storage.id}`)}>查看拓扑</Button></div></section><nav className="storage-console-tabs" aria-label={`${engineName} 控制台导航`}>{config.panels.map((item) => <button key={item} className={item === activePanel ? "active" : ""} onClick={() => navigate(panelPath(item))}>{config.panelLabels[item]}</button>)}</nav>{panels[activePanel]}<CreateNodeModal open={brokerOpen} onClose={()=>setBrokerOpen(false)} kind="broker" cluster={storage} existingNames={storage.nodes.map((item)=>item.name)} onCreate={addNode}/><CreateTopicModal open={topicOpen} onClose={()=>setTopicOpen(false)} eventMeshClusterId={clusterId} storageClusters={[storage]} fixedStorage={storage} existingNames={topics.map((item)=>item.name)} onCreate={addPhysicalTopic}/></div>;
 }
