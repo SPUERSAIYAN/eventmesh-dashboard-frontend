@@ -1,136 +1,125 @@
-# EventMesh 前端页面、增删改查与 Controller 对照
+# EventMesh 页面、Metadata 操作与 Controller 对照
 
-> 路由列统一记录模块入口。同一模块内的概览、列表、节点、关联等页面由“页面”列区分，不再为每个页签重复增加 `section`、`panel` 或末级页面路径。
+本文按照前端页面整理 Metadata 操作，并对应后端 `eventmesh-dashboard-console` 中实际存在的 Controller。
 
-## 1. 全部集群与 EventMesh 集群
+- 后端统一上下文为 `/eventmesh/dashboard`，表中的接口路径省略该前缀。
+- `已有`：后端源码存在对应接口和调用逻辑。
+- `页面未接入`：后端接口存在，但当前前端页面没有调用。
+- `页面 Mock`：当前页面只写入前端本地状态。
 
-| 页面 | 路由 | 数据对象 | 操作 | 相关接口 | Controller | 说明 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 全部集群 | `/clusters` | `ClusterEntity` | 查询 | `POST /user/cluster/queryClusterByOrganizationIdAndType` | `ClusterController` | **已有**；当前页面实际展示 Mock 集群。 |
-| 全部集群 | `/clusters` | 集群复制任务 | **新增** | `POST /organization/clusterCycleDeploy/createClusterByCopy` | `ClusterCycleController` | 前端实际写入 `eventmesh-mock-copy-state-v2`；后端接口源码存在，但缺少任务进度和结果查询接口。 |
-| 集群组成概览 | `/clusters/:clusterId` | `ClusterDetailsVO` | 查询 | `POST /user/cluster/queryClusterDetails` | `ClusterController` | **不完整**；当前返回空对象。 |
-| 集群组成概览 | `/clusters/:clusterId` | `ClusterTreeVO` | 查询 | `POST /user/cluster/queryTreeByClusterId` | `ClusterController` | **已有**；读取集群、关系和 Runtime 组成。 |
-| EventMesh 概要 | `/clusters/:clusterId` | 集群基础信息 | 查询 | `GET /user/cluster/queryHomeClusterData` | `ClusterController` | **候选**；GET 携带 RequestBody，建议调整契约。 |
-| EventMesh 概要 | `/clusters/:clusterId` | 概览指标 | 查询 | `POST /overview/overview` | `OverviewController` | **候选**；需确认 `overviewType` 和返回结构。 |
-| EventMesh 概要 | `/clusters/:clusterId` | `RuntimeEntity` | **新增** | `POST /organization/activeCreate/createRuntime` | `ActiveCreateController` | 前端实际只追加 React 内存状态；后端 `CreateRuntimeDTO` 包含 `clusterId/name/host/port`，接口可作为候选，但当前没有调用。 |
-| EventMesh 概要 | `/clusters/:clusterId` | Meta 节点 | **新增** | — | — | 前端实际只追加 React 内存状态；后端未查询到 Meta 节点创建接口。 |
-| EventMesh 概要 | `/clusters/:clusterId` | EventMesh 集群副本 | **新增** | `POST /organization/clusterCycleDeploy/createClusterByCopy` | `ClusterCycleController` | 前端实际写入 `eventmesh-mock-copy-state-v2`，进度由定时器模拟；后端接口当前未调用。 |
-| 集群拓扑 | `/clusters/:clusterId` | `ClusterTreeVO` | 查询 | `POST /user/cluster/queryTreeByClusterId` | `ClusterController` | **已有**。 |
-| 集群拓扑 | `/clusters/:clusterId` | `RuntimeEntity` | 查询 | `POST /runtime/queryRuntimeListByClusterId` | `RuntimeController` | **已有**。 |
-| 集群拓扑 | `/clusters/:clusterId` | `TopicEntity` | 查询 | `POST /user/topic/queryTopicListByClusterId` | `TopicController` | **已有**；Topic 是资源目录，不是拓扑边。 |
-| 集群拓扑 | `/clusters/:clusterId` | `GroupEntity` | 查询 | `POST /user/group/queryGroupListByClusterId` | `GroupController` | **已有**；Consumer Group 是资源目录。 |
-| EventMesh 关联集群 | `/clusters/:clusterId` | `ClusterRelationshipEntity` | 查询 | `POST /clusterRelationship/queryClusterAndRelationshipEntityListByClusterId` | `ClusterRelationshipController` | **候选**。 |
-| EventMesh 关联集群 | `/clusters/:clusterId` | `ClusterRelationshipEntity` | **新增** | `POST /clusterRelationship/addClusterRelationshipEntry` | `ClusterRelationshipController` | 前端实际调用 `addRelations` 写入本地关系；后端接口存在但已标记 `@Deprecated`。 |
-| EventMesh 关联集群 | `/clusters/:clusterId` | `ClusterRelationshipEntity` | **删除** | `POST /clusterRelationship/relieveRelationship` | `ClusterRelationshipController` | 前端“解除”操作实际调用 `removeRelation`；后端接口存在但已标记 `@Deprecated`。 |
+## 1. 集群页面
 
-## 2. Runtime 集群
+<table>
+  <thead><tr><th>页面</th><th>metadata</th><th>操作</th><th>controller</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="2">大集群页</td><td>all</td><td>查询</td><td><code>ClusterController.queryClusterByOrganizationIdAndType</code><br><code>POST /user/cluster/queryClusterByOrganizationIdAndType</code></td><td>后端已有；当前页面展示前端 Mock 集群。</td></tr>
+    <tr><td>all</td><td>复制</td><td><code>ClusterCycleController.createClusterByCopy</code><br><code>POST /organization/clusterCycleDeploy/createClusterByCopy</code></td><td>后端已有；当前页面使用本地复制任务，没有接入后端。</td></tr>
+    <tr><td rowspan="11">集群页面</td><td>cluster</td><td>查询基础信息</td><td><code>ClusterController.queryHomeClusterData</code><br><code>GET /user/cluster/queryHomeClusterData</code></td><td>后端已有；接口使用 GET + RequestBody，接入前需要联调。</td></tr>
+    <tr><td>cluster</td><td>查询详情</td><td><code>ClusterController.queryClusterDetails</code><br><code>POST /user/cluster/queryClusterDetails</code></td><td><strong>不完整</strong>；当前返回空的 <code>ClusterDetailsVO</code>。</td></tr>
+    <tr><td>cluster</td><td>查询拓扑</td><td><code>ClusterController.queryTreeByClusterId</code><br><code>POST /user/cluster/queryTreeByClusterId</code></td><td>后端已有。</td></tr>
+    <tr><td>cluster</td><td>基于 Metadata 创建</td><td><code>ClusterCycleController.createClusterByFullMetadata</code><br><code>POST /organization/clusterCycleDeploy/createClusterByFullMetadata</code></td><td>后端已有；当前页面未开放。</td></tr>
+    <tr><td>cluster</td><td>基于基础数据创建</td><td><code>ActiveCreateController.createCluster</code><br><code>POST /organization/activeCreate/createCluster</code></td><td>后端已有；当前页面未开放。</td></tr>
+    <tr><td>cluster</td><td>基于部署脚本创建</td><td><code>ClusterCycleController.createClusterByDeployScript</code><br><code>POST /organization/clusterCycleDeploy/createClusterByDeployScript</code></td><td>后端已有；当前页面未开放。</td></tr>
+    <tr><td>cluster</td><td>直接复制</td><td><code>ClusterCycleController.createClusterByCopy</code><br><code>POST /organization/clusterCycleDeploy/createClusterByCopy</code></td><td>后端已有；当前页面执行的是 Mock 复制。</td></tr>
+    <tr><td>relationship</td><td>查询关联</td><td><code>ClusterRelationshipController.queryClusterAndRelationshipEntityListByClusterId</code><br><code>POST /clusterRelationship/queryClusterAndRelationshipEntityListByClusterId</code></td><td>后端已有；当前页面关系来自本地 Mock。</td></tr>
+    <tr><td>relationship</td><td>建立关联</td><td><code>ClusterRelationshipController.addClusterRelationshipEntry</code><br><code>POST /clusterRelationship/addClusterRelationshipEntry</code></td><td>后端接口存在但已标记 <code>@Deprecated</code>；当前页面调用 <code>addRelations</code>。</td></tr>
+    <tr><td>relationship</td><td>解除关联</td><td><code>ClusterRelationshipController.relieveRelationship</code><br><code>POST /clusterRelationship/relieveRelationship</code></td><td>后端接口存在但已标记 <code>@Deprecated</code>；当前页面调用 <code>removeRelation</code>。</td></tr>
+    <tr><td>runtime</td><td>创建</td><td><code>ActiveCreateController.createRuntime</code><br><code>POST /organization/activeCreate/createRuntime</code></td><td>后端已有；当前“添加节点”只写入前端状态。</td></tr>
+    <tr><td rowspan="5">Runtime 页面</td><td>runtime</td><td>查询</td><td><code>RuntimeController.queryRuntimeListByClusterId</code><br><code>POST /runtime/queryRuntimeListByClusterId</code></td><td>后端已有。</td></tr>
+    <tr><td>runtime</td><td>创建</td><td><code>ActiveCreateController.createRuntime</code><br><code>POST /organization/activeCreate/createRuntime</code></td><td>后端已有；当前 Runtime 页面为 Mock 新增。</td></tr>
+    <tr><td>runtime</td><td>基于部署脚本创建</td><td><code>ClusterCycleController.createRuntimeByDeployScript</code><br><code>POST /organization/clusterCycleDeploy/createRuntimeByDeployScript</code></td><td>后端已有；当前页面未开放。</td></tr>
+    <tr><td>runtime</td><td>查询健康历史</td><td><code>HealthController.getHistoryLiveStatusById</code><br><code>GET /cluster/health/getHistoryLiveStatus</code></td><td>后端已有；当前页面指标为 Mock。</td></tr>
+    <tr><td>runtime</td><td>查询可用率</td><td><code>HealthController.getInstanceLiveProportion</code><br><code>GET /cluster/health/getInstanceLiveProportion</code></td><td>后端已有；当前页面指标为 Mock。</td></tr>
+  </tbody>
+</table>
 
-| 页面 | 路由 | 数据对象 | 操作 | 相关接口 | Controller | 说明 |
-| --- | --- | --- | --- | --- | --- | --- |
-| Runtime 概要 | `/clusters/:clusterId/runtime` | Runtime 集群关系 | 查询 | `POST /user/cluster/queryRelationClusterByClusterIdAndType` | `ClusterController` | **不完整**；存在已知 MyBatis 枚举比较错误。 |
-| Runtime 概要 | `/clusters/:clusterId/runtime` | `RuntimeEntity` | 查询 | `POST /runtime/queryRuntimeListByClusterId` | `RuntimeController` | **已有**；指标和趋势仍为 Mock。 |
-| Runtime 集群列表 | `/clusters/:clusterId/runtime` | Runtime 类型 `ClusterEntity` | 查询 | `POST /user/cluster/queryClusterByOrganizationIdAndType` | `ClusterController` | **已有**。 |
-| Runtime 列表 | `/clusters/:clusterId/runtime` | `RuntimeEntity` | 查询 | `POST /runtime/queryRuntimeListByClusterId` | `RuntimeController` | **已有**。 |
-| Runtime 列表 | `/clusters/:clusterId/runtime` | `RuntimeEntity` | **新增** | `POST /organization/activeCreate/createRuntime` | `ActiveCreateController` | **候选**；当前页面操作为 Mock。 |
-| Runtime 被关联列表 | `/clusters/:clusterId/runtime` | `ClusterRelationshipEntity` | 查询 | `POST /clusterRelationship/queryClusterAndRelationshipEntityListByClusterId` | `ClusterRelationshipController` | **候选**。 |
-| Runtime 被关联列表 | `/clusters/:clusterId/runtime` | `ClusterRelationshipEntity` | **新增** | `POST /clusterRelationship/addClusterRelationshipEntry` | `ClusterRelationshipController` | **不完整**；接口已废弃。 |
-| Runtime 被关联列表 | `/clusters/:clusterId/runtime` | `ClusterRelationshipEntity` | **删除** | `POST /clusterRelationship/relieveRelationship` | `ClusterRelationshipController` | **不完整**；接口已废弃。 |
-| Runtime 控制台概要 | `/clusters/:clusterId/runtime/:runtimeClusterId` | Runtime 实例 | 查询 | `POST /runtime/queryRuntimeListByClusterId` | `RuntimeController` | **已有**；不能覆盖全部页面指标。 |
-| Runtime 控制台概要 | `/clusters/:clusterId/runtime/:runtimeClusterId` | 健康历史 | 查询 | `GET /cluster/health/getHistoryLiveStatus` | `HealthController` | **候选**。 |
-| Runtime 控制台概要 | `/clusters/:clusterId/runtime/:runtimeClusterId` | 可用率 | 查询 | `GET /cluster/health/getInstanceLiveProportion` | `HealthController` | **候选**。 |
-| Runtime 实例 | `/clusters/:clusterId/runtime/:runtimeClusterId` | `RuntimeEntity` | 查询 | `POST /runtime/queryRuntimeListByClusterId` | `RuntimeController` | **已有**。 |
-| Runtime 实例 | `/clusters/:clusterId/runtime/:runtimeClusterId` | `RuntimeEntity` | **新增** | `POST /organization/activeCreate/createRuntime` | `ActiveCreateController` | **候选**；当前写入 `localStorage`。 |
-| Runtime 客户端连接 | `/clusters/:clusterId/runtime/:runtimeClusterId` | `ClientEntity` | 查询 | `POST /client/queryClientByUserForm` | `ClientDataController` | **候选**；表示业务客户端。 |
-| Runtime 客户端连接 | `/clusters/:clusterId/runtime/:runtimeClusterId` | `NetConnectionEntity` | 查询 | `POST /netConnection` | `NetConnectionController` | **候选**；需与 Client 模型统一。 |
-| Runtime Topic 与订阅 | `/clusters/:clusterId/runtime/:runtimeClusterId` | `TopicEntity` | 查询 | `POST /user/topic/queryTopicListByClusterId` | `TopicController` | **已有**。 |
-| Runtime Topic 与订阅 | `/clusters/:clusterId/runtime/:runtimeClusterId` | `GroupEntity` | 查询 | `POST /user/group/queryGroupListByTopicId` | `GroupController` | **已有**。 |
-| Runtime 关联 EventMesh | `/clusters/:clusterId/runtime/:runtimeClusterId` | `ClusterRelationshipEntity` | 查询 | `POST /clusterRelationship/queryClusterAndRelationshipEntityListByClusterId` | `ClusterRelationshipController` | **候选**。 |
+## 2. Meta 页面
 
-## 3. Meta 集群
+<table>
+  <thead><tr><th>页面</th><th>metadata</th><th>操作</th><th>controller</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="5">Meta 页面</td><td>cluster</td><td>查询集群</td><td><code>ClusterController.queryClusterByOrganizationIdAndType</code><br><code>POST /user/cluster/queryClusterByOrganizationIdAndType</code></td><td>后端已有；按 Meta 集群类型筛选。</td></tr>
+    <tr><td>meta</td><td>查询详情</td><td><code>DetailsController.metaDetails</code><br><code>POST /organization/details/meta</code></td><td><strong>不完整</strong>；Controller 方法没有返回详情数据。</td></tr>
+    <tr><td>relationship</td><td>查询关联 EventMesh</td><td><code>ClusterRelationshipController.queryClusterAndRelationshipEntityListByClusterId</code><br><code>POST /clusterRelationship/queryClusterAndRelationshipEntityListByClusterId</code></td><td>后端已有；当前页面使用 Mock 关系。</td></tr>
+    <tr><td>relationship</td><td>建立关联</td><td><code>ClusterRelationshipController.addClusterRelationshipEntry</code><br><code>POST /clusterRelationship/addClusterRelationshipEntry</code></td><td>接口已标记 <code>@Deprecated</code>；当前页面使用 Mock。</td></tr>
+    <tr><td>relationship</td><td>解除关联</td><td><code>ClusterRelationshipController.relieveRelationship</code><br><code>POST /clusterRelationship/relieveRelationship</code></td><td>接口已标记 <code>@Deprecated</code>；当前页面使用 Mock。</td></tr>
+  </tbody>
+</table>
 
-| 页面 | 路由 | 数据对象 | 操作 | 相关接口 | Controller | 说明 |
-| --- | --- | --- | --- | --- | --- | --- |
-| Meta 概要 | `/clusters/:clusterId/meta` | Meta 类型 `ClusterEntity` | 查询 | `POST /user/cluster/queryClusterByOrganizationIdAndType` | `ClusterController` | **已有**；只能查询集群基础信息。 |
-| Meta 集群列表 | `/clusters/:clusterId/meta` | Meta 类型 `ClusterEntity` | 查询 | `POST /user/cluster/queryClusterByOrganizationIdAndType` | `ClusterController` | **已有**。 |
-| Meta 被关联列表 | `/clusters/:clusterId/meta` | `ClusterRelationshipEntity` | 查询 | `POST /clusterRelationship/queryClusterAndRelationshipEntityListByClusterId` | `ClusterRelationshipController` | **候选**。 |
-| Meta 被关联列表 | `/clusters/:clusterId/meta` | `ClusterRelationshipEntity` | **新增** | `POST /clusterRelationship/addClusterRelationshipEntry` | `ClusterRelationshipController` | **不完整**；接口已废弃。 |
-| Meta 被关联列表 | `/clusters/:clusterId/meta` | `ClusterRelationshipEntity` | **删除** | `POST /clusterRelationship/relieveRelationship` | `ClusterRelationshipController` | **不完整**；接口已废弃。 |
-| Meta 控制台概要 | `/clusters/:clusterId/meta/:metaClusterId` | Meta 详情 | 查询 | `POST /organization/details/meta` | `DetailsController` | **不完整**；方法返回 `void`。 |
-| Meta 控制台概要 | `/clusters/:clusterId/meta/:metaClusterId` | 监控指标 | 查询 | `POST /overview/overview` | `OverviewController` | **候选**；需补充明确 DTO。 |
-| Meta 节点 | `/clusters/:clusterId/meta/:metaClusterId` | Meta 节点 | 查询 | — | — | **缺失**。 |
-| Meta 节点 | `/clusters/:clusterId/meta/:metaClusterId` | Meta 节点 | **新增** | — | — | **缺失**；当前只写入 Mock。 |
-| Meta 注册信息 | `/clusters/:clusterId/meta/:metaClusterId` | Runtime 注册和租约 | 查询 | — | — | **缺失**。 |
-| Meta 关联 EventMesh | `/clusters/:clusterId/meta/:metaClusterId` | `ClusterRelationshipEntity` | 查询 | `POST /clusterRelationship/queryClusterAndRelationshipEntityListByClusterId` | `ClusterRelationshipController` | **候选**。 |
+## 3. Kafka 与 RocketMQ 存储页面
 
-## 4. Kafka 与 RocketMQ 存储集群
+<table>
+  <thead><tr><th>页面</th><th>metadata</th><th>操作</th><th>controller</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="7">存储集群页面</td><td>cluster</td><td>查询集群</td><td><code>ClusterController.queryClusterByOrganizationIdAndType</code><br><code>POST /user/cluster/queryClusterByOrganizationIdAndType</code></td><td>后端已有；按 Kafka 或 RocketMQ 类型筛选。</td></tr>
+    <tr><td>storage</td><td>查询详情</td><td><code>DetailsController.storageDetails</code><br><code>POST /organization/details/storage</code></td><td><strong>不完整</strong>；Controller 方法没有返回详情数据。</td></tr>
+    <tr><td>topic</td><td>查询</td><td><code>TopicController.queryTopicListByClusterId</code><br><code>POST /user/topic/queryTopicListByClusterId</code></td><td>后端已有。</td></tr>
+    <tr><td>topic</td><td>创建</td><td><code>TopicController.createTopic</code><br><code>POST /user/topic/createTopic</code></td><td>后端已有；是否只写入指定存储集群仍需联调，当前页面使用 Mock。</td></tr>
+    <tr><td>topic</td><td>删除</td><td><code>TopicController.deleteTopic</code><br><code>GET /user/topic/deleteTopic</code></td><td>后端已有；当前页面未开放。接口采用 GET + RequestBody。</td></tr>
+    <tr><td>consumer group</td><td>查询</td><td><code>GroupController.queryGroupListByClusterId</code><br><code>POST /user/group/queryGroupListByClusterId</code></td><td>后端已有。</td></tr>
+    <tr><td>relationship</td><td>查询关联 EventMesh</td><td><code>ClusterRelationshipController.queryClusterAndRelationshipEntityListByClusterId</code><br><code>POST /clusterRelationship/queryClusterAndRelationshipEntityListByClusterId</code></td><td>后端已有；当前页面使用 Mock 关系。</td></tr>
+  </tbody>
+</table>
 
-| 页面 | 路由 | 数据对象 | 操作 | 相关接口 | Controller | 说明 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 存储概要 | `/clusters/:clusterId/storage` | Kafka/RocketMQ `ClusterEntity` | 查询 | `POST /user/cluster/queryClusterByOrganizationIdAndType` | `ClusterController` | **已有**；Broker 和监控数据为 Mock。 |
-| Kafka 集群列表 | `/clusters/:clusterId/storage` | Kafka `ClusterEntity` | 查询 | `POST /user/cluster/queryClusterByOrganizationIdAndType` | `ClusterController` | **已有**。 |
-| RocketMQ 集群列表 | `/clusters/:clusterId/storage` | RocketMQ `ClusterEntity` | 查询 | `POST /user/cluster/queryClusterByOrganizationIdAndType` | `ClusterController` | **已有**。 |
-| 存储被关联列表 | `/clusters/:clusterId/storage` | `ClusterRelationshipEntity` | 查询 | `POST /clusterRelationship/queryClusterAndRelationshipEntityListByClusterId` | `ClusterRelationshipController` | **候选**。 |
-| 存储被关联列表 | `/clusters/:clusterId/storage` | `ClusterRelationshipEntity` | **新增** | `POST /clusterRelationship/addClusterRelationshipEntry` | `ClusterRelationshipController` | **不完整**；接口已废弃。 |
-| 存储被关联列表 | `/clusters/:clusterId/storage` | `ClusterRelationshipEntity` | **删除** | `POST /clusterRelationship/relieveRelationship` | `ClusterRelationshipController` | **不完整**；接口已废弃。 |
-| 存储控制台概要 | `/clusters/:clusterId/storage/:engine/:storageClusterId` | 存储详情 | 查询 | `POST /organization/details/storage` | `DetailsController` | **不完整**；方法返回 `void`。 |
-| 存储控制台概要 | `/clusters/:clusterId/storage/:engine/:storageClusterId` | 监控指标 | 查询 | `POST /overview/overview` | `OverviewController` | **候选**；缺少稳定聚合 DTO。 |
-| Broker | `/clusters/:clusterId/storage/:engine/:storageClusterId` | Broker | 查询 | — | — | **缺失**。 |
-| Broker | `/clusters/:clusterId/storage/:engine/:storageClusterId` | Broker | **新增** | — | — | **缺失**；当前只写入 Mock。 |
-| 物理 Topic | `/clusters/:clusterId/storage/:engine/:storageClusterId` | `TopicEntity` | 查询 | `POST /user/topic/queryTopicListByClusterId` | `TopicController` | **已有**。 |
-| 物理 Topic | `/clusters/:clusterId/storage/:engine/:storageClusterId` | `TopicEntity` | **新增** | `POST /user/topic/createTopic` | `TopicController` | **候选**；需验证能否只写指定存储集群。 |
-| 物理 Topic | `/clusters/:clusterId/storage/:engine/:storageClusterId` | `TopicEntity` | **删除（页面未开放）** | `GET /user/topic/deleteTopic` | `TopicController` | 后端源码存在；当前物理 Topic 页面没有删除按钮，且接口采用 GET + RequestBody。 |
-| 存储消费组 | `/clusters/:clusterId/storage/:engine/:storageClusterId` | `GroupEntity` | 查询 | `POST /user/group/queryGroupListByClusterId` | `GroupController` | **已有**；速率和 lag 需要其他运行数据。 |
-| 存储关联 EventMesh | `/clusters/:clusterId/storage/:engine/:storageClusterId` | `ClusterRelationshipEntity` | 查询 | `POST /clusterRelationship/queryClusterAndRelationshipEntityListByClusterId` | `ClusterRelationshipController` | **候选**。 |
+## 4. Topic 页面
 
-## 5. 主题
+<table>
+  <thead><tr><th>页面</th><th>metadata</th><th>操作</th><th>controller</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="3">Topic 页面</td><td>topic</td><td>查询</td><td><code>TopicController.queryTopicListByClusterId</code><br><code>POST /user/topic/queryTopicListByClusterId</code></td><td>后端已有；当前页面的监控指标为 Mock。</td></tr>
+    <tr><td>topic</td><td>创建</td><td><code>TopicController.createTopic</code><br><code>POST /user/topic/createTopic</code></td><td>后端已有；当前页面创建业务 Topic 和物理 Topic 的联动仍为 Mock。</td></tr>
+    <tr><td>topic</td><td>删除</td><td><code>TopicController.deleteTopic</code><br><code>GET /user/topic/deleteTopic</code></td><td>后端已有；当前页面未开放。接口采用 GET + RequestBody。</td></tr>
+  </tbody>
+</table>
 
-| 页面 | 路由 | 数据对象 | 操作 | 相关接口 | Controller | 说明 |
-| --- | --- | --- | --- | --- | --- | --- |
-| Topic 概览 | `/clusters/:clusterId/topics` | 业务 `TopicEntity` | 查询 | `POST /user/topic/queryTopicListByClusterId` | `TopicController` | **已有**；监控指标为 Mock。 |
-| Topic 概览 | `/clusters/:clusterId/topics` | 业务 Topic | **新增** | `POST /user/topic/createTopic` | `TopicController` | **候选**；需支持指定存储目标。 |
-| Topic 列表 | `/clusters/:clusterId/topics` | `TopicEntity` | 查询 | `POST /user/topic/queryTopicListByClusterId` | `TopicController` | **已有**。 |
-| Topic 列表 | `/clusters/:clusterId/topics` | `TopicEntity` | **新增** | `POST /user/topic/createTopic` | `TopicController` | **候选**；当前页面操作为 Mock。 |
-| Topic 列表 | `/clusters/:clusterId/topics` | `TopicEntity` | **删除（页面未开放）** | `GET /user/topic/deleteTopic` | `TopicController` | 后端源码存在；当前 Topic 列表没有删除按钮，且接口采用 GET + RequestBody。 |
+## 5. 客户端连接页面
 
-## 6. 客户端连接概览
+<table>
+  <thead><tr><th>页面</th><th>metadata</th><th>操作</th><th>controller</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>客户端连接概览</td><td>connection</td><td>查询指标</td><td><code>OverviewController.overview</code><br><code>POST /overview/overview</code></td><td>后端接口存在，但指标字段和时间维度尚未验证；当前页面为 Mock。</td></tr>
+    <tr><td rowspan="2">连接列表</td><td>client</td><td>查询</td><td><code>ClientDataController.queryClientByUserForm</code><br><code>POST /client/queryClientByUserForm</code></td><td>后端已有；表示业务客户端。</td></tr>
+    <tr><td>net connection</td><td>查询</td><td><code>NetConnectionController.queryNetConnectionEntityListByFrom</code><br><code>POST /netConnection</code></td><td>后端已有；与 <code>ClientEntity</code> 的页面模型仍需统一。</td></tr>
+  </tbody>
+</table>
 
-| 页面 | 路由 | 数据对象 | 操作 | 相关接口 | Controller | 说明 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 客户端连接概览 | `/clusters/:clusterId/connections` | 连接指标 | 查询 | `POST /overview/overview` | `OverviewController` | **候选**；指标契约未验证。 |
+## 6. Consumer 页面
 
-## 7. 连接列表
+<table>
+  <thead><tr><th>页面</th><th>metadata</th><th>操作</th><th>controller</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="2">Consumer 页面</td><td>consumer group</td><td>查询</td><td><code>GroupController.queryGroupListByClusterId</code><br><code>POST /user/group/queryGroupListByClusterId</code></td><td>后端已有。</td></tr>
+    <tr><td>consumer group</td><td>删除</td><td><code>GroupController.deleteGroupById</code><br><code>POST /user/group/deleteGroupById</code></td><td>后端已有；当前页面未开放。</td></tr>
+  </tbody>
+</table>
 
-| 页面 | 路由 | 数据对象 | 操作 | 相关接口 | Controller | 说明 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 连接列表 | `/clusters/:clusterId/connections` | `ClientEntity` | 查询 | `POST /client/queryClientByUserForm` | `ClientDataController` | **候选**。 |
-| 连接列表 | `/clusters/:clusterId/connections` | `NetConnectionEntity` | 查询 | `POST /netConnection` | `NetConnectionController` | **候选**；需统一数据模型。 |
+## 7. Operation 页面
 
-## 8. Consumer
+<table>
+  <thead><tr><th>页面</th><th>metadata</th><th>操作</th><th>controller</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>Operation 页面</td><td>operation log</td><td>查询</td><td><code>LogController.getLogLIstToFront</code><br><code>POST /cluster/log/getList</code></td><td>后端已有；当前页面还会合并前端 Mock 复制任务。</td></tr>
+  </tbody>
+</table>
 
-| 页面 | 路由 | 数据对象 | 操作 | 相关接口 | Controller | 说明 |
-| --- | --- | --- | --- | --- | --- | --- |
-| Consumer | `/clusters/:clusterId/consumers` | `GroupEntity` | 查询 | `POST /user/group/queryGroupListByClusterId` | `GroupController` | **已有**。 |
-| Consumer | `/clusters/:clusterId/consumers` | `GroupEntity` | **新增** | — | — | **缺失**；当前只写入 Mock。 |
-| Consumer | `/clusters/:clusterId/consumers` | `GroupEntity` | **删除（页面未开放）** | `POST /user/group/deleteGroupById` | `GroupController` | 后端源码存在；当前 Consumer 页面没有删除按钮。 |
+## 8. Message 页面
 
-## 9. 操作记录
+<table>
+  <thead><tr><th>页面</th><th>metadata</th><th>操作</th><th>controller</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="2">Message 页面</td><td>message report</td><td>查询首页报表</td><td><code>ReportController.reportByHome</code><br><code>/report/reportByHome</code></td><td>后端接口存在；请求方法和返回指标仍需联调。</td></tr>
+    <tr><td>message report</td><td>查询单集群报表</td><td><code>ReportController.reportBySingle</code><br><code>/report/reportBySingle</code></td><td>后端接口存在；请求方法和返回指标仍需联调。</td></tr>
+  </tbody>
+</table>
 
-| 页面 | 路由 | 数据对象 | 操作 | 相关接口 | Controller | 说明 |
-| --- | --- | --- | --- | --- | --- | --- |
-| Operations | `/clusters/:clusterId/operations` | `LogEntity` | 查询 | `POST /cluster/log/getList` | `LogController` | **已有**；复制进度没有任务查询接口。 |
+## 9. Security 页面
 
-## 10. Message
-
-| 页面 | 路由 | 数据对象 | 操作 | 相关接口 | Controller | 说明 |
-| --- | --- | --- | --- | --- | --- | --- |
-| Message | `/clusters/:clusterId/messages` | 消息速率和趋势 | 查询 | `/report/reportByHome`、`/report/reportBySingle` | `ReportController` | **候选**；需明确请求方法和指标契约。 |
-
-## 11. Security
-
-| 页面 | 路由 | 数据对象 | 操作 | 相关接口 | Controller | 说明 |
-| --- | --- | --- | --- | --- | --- | --- |
-| Security | `/clusters/:clusterId/security` | TLS、Topic ACL、网络白名单模拟记录 | 查询 | — | — | 当前页面实际展示静态 Mock 记录，没有调用后端。 |
-| Security | `/clusters/:clusterId/security` | `AclEntity` | **查询（页面未接入）** | `POST /acl/selectAcl` | `AclController` | 后端映射存在，但方法返回 `void`，没有实际 Service 调用。 |
-| Security | `/clusters/:clusterId/security` | `AclEntity` | **新增（页面未开放）** | `POST /acl/insertAcl` | `AclController` | 后端映射存在，但方法没有实际写入逻辑。 |
-| Security | `/clusters/:clusterId/security` | `AclEntity` | **修改（页面未开放）** | `POST /acl/updateAcl` | `AclController` | 后端映射存在，但方法没有实际更新逻辑。 |
-| Security | `/clusters/:clusterId/security` | `AclEntity` | **删除（页面未开放）** | `POST /acl/deleteAcl` | `AclController` | 后端映射存在，但方法没有实际删除逻辑。 |
+<table>
+  <thead><tr><th>页面</th><th>metadata</th><th>操作</th><th>controller</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="4">Security 页面</td><td>acl</td><td>查询</td><td><code>AclController.selectAcl</code><br><code>POST /acl/selectAcl</code></td><td>后端会调用 Service，但 Controller 返回 <code>void</code>；当前页面未接入。</td></tr>
+    <tr><td>acl</td><td>创建</td><td><code>AclController.insertAcl</code><br><code>POST /acl/insertAcl</code></td><td>后端已有；当前页面未开放。</td></tr>
+    <tr><td>acl</td><td>修改</td><td><code>AclController.updateAcl</code><br><code>POST /acl/updateAcl</code></td><td>后端已有；当前页面未开放。</td></tr>
+    <tr><td>acl</td><td>删除</td><td><code>AclController.deleteAcl</code><br><code>POST /acl/deleteAcl</code></td><td>后端已有；当前页面未开放。</td></tr>
+  </tbody>
+</table>
