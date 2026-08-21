@@ -15,14 +15,14 @@ import {
 import { Button, Select, Tag } from "antd";
 import ReactECharts from "echarts-for-react";
 import { useNavigate, useParams } from "react-router-dom";
-import { mockClusters } from "./mockClusterData";
-import { mockComponentClusters } from "./mockClusterRelations";
-import { storageClusterConsolePath } from "./routes";
-import { CreateNodeModal, CreateTopicModal } from "./MockResourceCreateModals";
-import { COMPONENT_DEFINITIONS, isComponentPanel } from "./clusterDefinitions";
-import { ResourceTable } from "./components/ResourceTable";
-import { StatusBadge } from "./components/StatusBadge";
-import { useMockRelations, useMockWritableResources } from "./mockClusterStore";
+import { mockClusters } from "../mock/mockClusterData";
+import { mockComponentClusters } from "../mock/mockClusterRelations";
+import { storageClusterConsolePath } from "../routes";
+import { CreateNodeModal, CreateTopicModal } from "../components/MockResourceCreateModals";
+import { COMPONENT_DEFINITIONS, isComponentPanel } from "../config/clusterDefinitions";
+import { ResourceTable } from "../components/ResourceTable";
+import { StatusBadge } from "../components/StatusBadge";
+import { useMockRelations, useMockWritableResources } from "../store/mockClusterStore";
 
 function physicalTopics(engine, clusterId) {
   const names = engine === "kafka"

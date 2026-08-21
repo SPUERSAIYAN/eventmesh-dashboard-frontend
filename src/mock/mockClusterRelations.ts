@@ -1,5 +1,5 @@
-import type { ComponentClusterType, ResourceStatus } from "./clusterDefinitions";
-export type { ComponentClusterType } from "./clusterDefinitions";
+import type { ComponentClusterType, ResourceStatus } from "../config/clusterDefinitions";
+export type { ComponentClusterType } from "../config/clusterDefinitions";
 
 export type ComponentNode = {
   id: string;

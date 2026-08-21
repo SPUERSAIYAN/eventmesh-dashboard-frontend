@@ -1,4 +1,4 @@
-import { isComponentPanel, isStorageEngine } from "./clusterDefinitions";
+import { isComponentPanel, isStorageEngine } from "./config/clusterDefinitions";
 
 const clusterViews = new Set(["summary", "overview", "topology", "relations", "runtime", "meta", "storage", "topics", "connections", "consumers", "operations", "messages", "security", "configuration"]);
 

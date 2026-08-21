@@ -3,15 +3,15 @@ import { ApartmentOutlined, CheckCircleOutlined, CloudServerOutlined, ClusterOut
 import { App as AntApp, Button, Checkbox, Input, Modal, Select, Tag } from "antd";
 import ReactECharts from "echarts-for-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { mockClusters, mockMessageSeries } from "./mockClusterData";
-import { mockComponentClusters } from "./mockClusterRelations";
-import { TopologyExperience } from "./TopologyExperience";
-import { componentClusterConsolePath, storageClusterConsolePath } from "./routes";
-import { CreateConsumerModal, CreateTopicModal } from "./MockResourceCreateModals";
-import { COMPONENT_TYPE_LABELS } from "./clusterDefinitions";
-import { ResourceTable } from "./components/ResourceTable";
-import { StatusBadge } from "./components/StatusBadge";
-import { useMockRelations, useMockWritableResources } from "./mockClusterStore";
+import { mockClusters, mockMessageSeries } from "../mock/mockClusterData";
+import { mockComponentClusters } from "../mock/mockClusterRelations";
+import { TopologyExperience } from "../topology/TopologyExperience";
+import { componentClusterConsolePath, storageClusterConsolePath } from "../routes";
+import { CreateConsumerModal, CreateTopicModal } from "../components/MockResourceCreateModals";
+import { COMPONENT_TYPE_LABELS } from "../config/clusterDefinitions";
+import { ResourceTable } from "../components/ResourceTable";
+import { StatusBadge } from "../components/StatusBadge";
+import { useMockRelations, useMockWritableResources } from "../store/mockClusterStore";
 
 const MockTag = () => <Tag className="mock-source-tag">MOCK DATA</Tag>;
 const Status = StatusBadge;
