@@ -5,13 +5,13 @@ import "@fontsource-variable/space-grotesk";
 import "@fontsource-variable/geist-mono";
 import { App } from "./App.tsx";
 import { I18nProvider } from "./i18n.tsx";
-import "./styles.css";
-import "./topology.css";
-import "./cluster-reference.css";
-import "./topology-experience.css";
-import "./alicloud-theme.css";
-import "./mock-cluster-experience.css";
-import "./storage-cluster-console.css";
+import "./styles/base.css";
+import "./styles/topology.css";
+import "./styles/cluster-reference.css";
+import "./styles/topology-experience.css";
+import "./styles/alicloud-theme.css";
+import "./styles/mock-cluster-experience.css";
+import "./styles/storage-cluster-console.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

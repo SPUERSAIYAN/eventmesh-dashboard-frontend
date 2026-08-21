@@ -7,7 +7,7 @@ import {
   normalizeMockRelationState,
   removeClusterRelation,
   type MockRelationState,
-} from "./mockClusterRelations";
+} from "../mock/mockClusterRelations";
 import {
   MOCK_WRITABLE_RESOURCE_KEY,
   addWritableConsumer,
@@ -16,7 +16,7 @@ import {
   addWritableTopic,
   defaultWritableResourceState,
   normalizeWritableResourceState,
-} from "./mockWritableResources";
+} from "../mock/mockWritableResources";
 
 export type MockClusterStoreState = {
   relations: MockRelationState;

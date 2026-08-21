@@ -22,12 +22,12 @@ import { apiClient } from "./api/client.ts";
 import { apiConfig } from "./api/config.ts";
 import { unwrapPayload } from "./api/contracts.ts";
 import { resourceRepository } from "./api/resourceRepository.ts";
-import { TopologyExperience } from "./TopologyExperience.tsx";
+import { TopologyExperience } from "./topology/TopologyExperience.tsx";
 import { useI18n } from "./i18n.tsx";
 import { clusterResourcePath, normalizeClusterView } from "./routes.ts";
-import { MockClusterDetail, MockClusterOverview } from "./MockClusterExperience.tsx";
-import { MockStorageClusterConsole } from "./StorageClusterConsole.tsx";
-import { MockComponentClusterConsole } from "./ComponentClusterConsole.tsx";
+import { MockClusterDetail, MockClusterOverview } from "./pages/MockClusterExperience.tsx";
+import { MockStorageClusterConsole } from "./pages/StorageClusterConsole.tsx";
+import { MockComponentClusterConsole } from "./pages/ComponentClusterConsole.tsx";
 
 const navSections = [
   { key: "resources", label: "Resource management", items: [

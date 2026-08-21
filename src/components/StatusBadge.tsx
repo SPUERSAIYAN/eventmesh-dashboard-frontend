@@ -1,6 +1,6 @@
 import { CheckCircleOutlined, ExclamationCircleOutlined, SettingOutlined } from "@ant-design/icons";
 import type { ReactNode } from "react";
-import { STATUS_DEFINITIONS, type ResourceStatus } from "../clusterDefinitions";
+import { STATUS_DEFINITIONS, type ResourceStatus } from "../config/clusterDefinitions";
 
 const STATUS_ICONS: Record<ResourceStatus, ReactNode> = {
   healthy: <CheckCircleOutlined />,

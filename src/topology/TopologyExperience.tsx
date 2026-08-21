@@ -25,8 +25,8 @@ import {
 } from "@ant-design/icons";
 import { Alert, Button, Empty, Select, Spin, Tree } from "antd";
 import { useSearchParams } from "react-router-dom";
-import eventMeshLogo from "./assets/eventmesh-logo.svg";
-import { useI18n } from "./i18n.tsx";
+import eventMeshLogo from "../assets/eventmesh-logo.svg";
+import { useI18n } from "../i18n.tsx";
 import {
   buildResourceTree,
   filterResourceTree,

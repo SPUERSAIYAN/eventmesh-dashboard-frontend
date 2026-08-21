@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { App as AntApp, Input, InputNumber, Modal, Select } from "antd";
 import { AppstoreAddOutlined, PlusOutlined, TeamOutlined } from "@ant-design/icons";
-import { ensureSimName } from "./mockWritableResources";
+import { ensureSimName } from "../mock/mockWritableResources";
 
 export function CreateNodeModal({ open, onClose, kind, cluster, existingNames, onCreate }) {
   const { message } = AntApp.useApp();
