@@ -41,24 +41,24 @@ const clusterScopedItems = [
   { key: "eventmesh", label: "EventMesh 集群", icon: ClusterOutlined, children: [
     { key: "cluster-overview", label: "概要", view: "overview" },
     { key: "cluster-topology", label: "集群拓扑", view: "topology" },
-    { key: "cluster-relations", label: "被关联列表", view: "relations" },
+    { key: "cluster-relations", label: "关联列表", view: "relations" },
   ] },
   { key: "runtime", label: "Runtime 集群", icon: CloudServerOutlined, children: [
     { key: "runtime-overview", label: "概要", view: "runtime", section: "overview" },
     { key: "runtime-clusters", label: "集群列表", view: "runtime", section: "clusters" },
     { key: "runtime-nodes", label: "Runtime 列表", view: "runtime", section: "runtimes" },
-    { key: "runtime-relations", label: "被关联列表", view: "runtime", section: "relations" },
+    { key: "runtime-relations", label: "关联列表", view: "runtime", section: "relations" },
   ] },
   { key: "meta", label: "Meta 集群", icon: DatabaseOutlined, children: [
     { key: "meta-overview", label: "概要", view: "meta", section: "overview" },
     { key: "meta-clusters", label: "集群列表", view: "meta", section: "clusters" },
-    { key: "meta-relations", label: "被关联列表", view: "meta", section: "relations" },
+    { key: "meta-relations", label: "关联列表", view: "meta", section: "relations" },
   ] },
   { key: "storage", label: "存储集群", icon: HddOutlined, children: [
     { key: "storage-overview", label: "概要", view: "storage", section: "overview" },
     { key: "storage-kafka", label: "Kafka 集群", view: "storage", section: "kafka" },
     { key: "storage-rocketmq", label: "RocketMQ 集群", view: "storage", section: "rocketmq" },
-    { key: "storage-relations", label: "被关联列表", view: "storage", section: "relations" },
+    { key: "storage-relations", label: "关联列表", view: "storage", section: "relations" },
   ] },
   { key: "topics", label: "Topics", icon: AppstoreOutlined, children: [
     { key: "topics-overview", label: "概览", view: "topics" },
