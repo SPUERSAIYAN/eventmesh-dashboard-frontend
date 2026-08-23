@@ -21,23 +21,23 @@ export const COMPONENT_DEFINITIONS = {
     resourceLabel: "Meta 节点",
     routeSection: "meta",
     panels: ["overview", "nodes", "registry", "relations"],
-    panelLabels: { overview: "概要", nodes: "Meta 节点", registry: "注册信息", relations: "关联 EventMesh" },
+    panelLabels: { overview: "概要", nodes: "Meta 节点", registry: "注册信息", relations: "主动关联" },
   },
   kafka: {
     label: "Kafka",
     clusterLabel: "Kafka 集群",
     resourceLabel: "Broker",
     routeSection: "storage",
-    panels: ["overview", "brokers", "topics", "groups", "relations"],
-    panelLabels: { overview: "概要", brokers: "Broker", topics: "Topic", groups: "消费组", relations: "关联 EventMesh" },
+    panels: ["overview", "controllers", "brokers", "partitions", "clients", "topics", "groups", "relations"],
+    panelLabels: { overview: "概要", controllers: "KRaft Controller", brokers: "Broker", partitions: "分区副本", clients: "客户端", topics: "Topic", groups: "消费组", relations: "关联 EventMesh" },
   },
   rocketmq: {
     label: "RocketMQ",
     clusterLabel: "RocketMQ 集群",
     resourceLabel: "Broker",
     routeSection: "storage",
-    panels: ["overview", "brokers", "topics", "groups", "relations"],
-    panelLabels: { overview: "概要", brokers: "Broker", topics: "Topic", groups: "消费组", relations: "关联 EventMesh" },
+    panels: ["overview", "nameservers", "brokers", "routes", "topics", "groups", "relations"],
+    panelLabels: { overview: "概要", nameservers: "NameServer", brokers: "Broker", routes: "路由与客户端", topics: "Topic", groups: "消费组", relations: "关联 EventMesh" },
   },
 } as const satisfies Record<ComponentClusterType, {
   label: string;
