@@ -46,7 +46,6 @@ const clusterScopedItems = [
   { key: "runtime", label: "Runtime 集群", icon: CloudServerOutlined, children: [
     { key: "runtime-overview", label: "概要", view: "runtime", section: "overview" },
     { key: "runtime-clusters", label: "集群列表", view: "runtime", section: "clusters" },
-    { key: "runtime-nodes", label: "Runtime 列表", view: "runtime", section: "runtimes" },
     { key: "runtime-relations", label: "关联列表", view: "runtime", section: "relations" },
   ] },
   { key: "meta", label: "Meta 集群", icon: DatabaseOutlined, children: [
