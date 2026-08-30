@@ -6,6 +6,7 @@ import { z } from "zod";
 const passthroughItemSchema = z.any();
 
 export const dashboardEndpoints = Object.freeze({
+  homepageClusters: "/user/cluster/queryVisualizationClusterByOrganizationIdAndType",
   clusters: "/user/cluster/queryClusterByOrganizationIdAndType",
   runtimes: "/runtime/queryRuntimeListByClusterId",
   topics: "/user/topic/queryTopicListByClusterId",
@@ -37,6 +38,15 @@ function normalizeStatus(status, fallback = "Healthy") {
   return fallback;
 }
 
+function normalizeHost(value) {
+  if (value == null || value === "") return null;
+  const text = String(value);
+  if (!/^\d+$/.test(text)) return text;
+  const numeric = Number(text);
+  if (!Number.isSafeInteger(numeric) || numeric <= 255 || numeric > 0xFFFFFFFF) return text;
+  return [24, 16, 8, 0].map((shift) => Math.floor(numeric / (2 ** shift)) % 256).join(".");
+}
+
 function formatDate(value, fallback) {
   if (!value) return fallback;
   const date = new Date(value);
@@ -55,12 +65,23 @@ function uptimeFrom(value, fallback) {
 function mapRuntime(entity, index) {
   return {
     id: String(entity.id ?? entity.name ?? `runtime-${index + 1}`),
+    clusterId: entity.clusterId == null ? null : String(entity.clusterId),
     name: entity.name ?? `runtime-${index + 1}`,
-    host: entity.host ?? null,
+    host: normalizeHost(entity.host),
     port: entity.port ?? null,
+    jmxPort: entity.jmxPort ?? null,
+    adminPort: entity.adminPort ?? null,
+    rack: entity.rack ?? null,
     version: entity.version ?? "—",
     clusterType: entity.clusterType ?? "RUNTIME",
-    status: normalizeStatus(entity.status ?? entity.deployStatusType, "Healthy"),
+    status: normalizeStatus(entity.status ?? entity.deployStatusType, "Unknown"),
+    deployStatus: entity.deployStatusType ?? null,
+    replicationType: entity.replicationType ?? null,
+    trusteeshipType: entity.trusteeshipType ?? null,
+    kubernetesClusterId: entity.kubernetesClusterId ?? null,
+    createTime: entity.createTime ?? null,
+    updateTime: entity.updateTime ?? null,
+    onlineTimestamp: entity.onlineTimestamp ?? null,
     cpu: null,
     memory: null,
     raw: entity,
@@ -88,7 +109,7 @@ function normalizeTopologyNode(node, context, seen) {
     clusterType: node.clusterType ?? (runtimeNode ? "RUNTIME" : "CLUSTER"),
     status: normalizeStatus(node.status ?? node.deployStatusType, "Unknown"),
     version: node.version ?? "—",
-    host: node.host ?? null,
+    host: normalizeHost(node.host),
     port: node.port ?? null,
     relation,
     parentId: context.parentId,
@@ -148,6 +169,7 @@ export function buildClusterTopology(cluster, directRuntimes = [], relatedNodes 
     seen.add(runtime.key);
     return true;
   });
+  const runtimeGroupStatus = runtimes.every((runtime) => runtime.status === "Healthy") ? "Healthy" : runtimes.some((runtime) => runtime.status === "Warning") ? "Warning" : "Unknown";
   const runtimeGroup = runtimes.length ? {
     key: `group-direct-runtimes-${root.id}`,
     id: null,
@@ -155,7 +177,7 @@ export function buildClusterTopology(cluster, directRuntimes = [], relatedNodes 
     kind: "group",
     nodeType: "GROUP",
     clusterType: "RUNTIME_GROUP",
-    status: runtimes.every((runtime) => runtime.status === "Healthy") ? "Healthy" : "Warning",
+    status: runtimeGroupStatus,
     version: "—",
     host: null,
     port: null,
@@ -205,6 +227,72 @@ function mapClusterReference(node) {
     clusterType: node.clusterType ?? "UNKNOWN",
     status: normalizeStatus(node.status ?? node.deployStatusType, "Unknown"),
   };
+}
+
+function topologyChildren(node) {
+  return [...(Array.isArray(node?.children) ? node.children : []), ...(Array.isArray(node?.runtime) ? node.runtime : [])]
+    .filter((child) => child && typeof child === "object");
+}
+
+function landscapeComponentType(clusterType) {
+  const value = String(clusterType ?? "").toUpperCase();
+  if (value.includes("META")) return "meta";
+  if (value.includes("KAFKA")) return "kafka";
+  if (value.includes("ROCKETMQ")) return "rocketmq";
+  return "unknown";
+}
+
+function mapLandscapeNode(node, index) {
+  return {
+    id: String(node?.id ?? node?.runtimeId ?? node?.name ?? `node-${index + 1}`),
+    name: node?.name ?? `Node ${index + 1}`,
+    host: normalizeHost(node?.host),
+    port: node?.port ?? null,
+    version: node?.version ?? "—",
+    deployStatus: node?.deployStatusType ?? null,
+    raw: node,
+  };
+}
+
+export function mapLandscapeComponent(node, index = 0) {
+  const config = clusterConfig(node);
+  const children = topologyChildren(node);
+  const nodesAvailable = Array.isArray(node?.children) || Array.isArray(node?.runtime);
+  return {
+    id: String(node?.id ?? node?.clusterId ?? node?.name ?? `component-${index + 1}`),
+    name: node?.name ?? `Component ${index + 1}`,
+    description: node?.description ?? "—",
+    type: landscapeComponentType(node?.clusterType),
+    clusterType: node?.clusterType ?? "UNKNOWN",
+    deployStatus: node?.deployStatusType ?? null,
+    region: config.region ?? "—",
+    version: node?.version ?? "—",
+    nodes: children.map(mapLandscapeNode),
+    nodesAvailable,
+    raw: node,
+  };
+}
+
+export function countMetaNodes(topology = []) {
+  const nodeIds = new Set();
+  let incompleteMetaTopology = false;
+  const visit = (node, insideMetaCluster = false) => {
+    if (!node || typeof node !== "object") return;
+    const clusterType = String(node.clusterType ?? "").toUpperCase();
+    const nodeType = String(node.nodeType ?? "").toUpperCase();
+    const isRuntimeNode = nodeType === "RUNTIME" || node.host != null || node.port != null;
+    const isMetaNode = clusterType.includes("META");
+    const isMetaCluster = !isRuntimeNode && isMetaNode;
+    if (isMetaCluster && !Array.isArray(node.children) && !Array.isArray(node.runtime)) {
+      incompleteMetaTopology = true;
+    }
+    if (isRuntimeNode && (insideMetaCluster || isMetaNode)) {
+      nodeIds.add(String(node.id ?? `${clusterType}:${node.name ?? nodeIds.size}`));
+    }
+    topologyChildren(node).forEach((child) => visit(child, insideMetaCluster || isMetaCluster));
+  };
+  (Array.isArray(topology) ? topology : []).forEach((node) => visit(node));
+  return incompleteMetaTopology ? null : nodeIds.size;
 }
 
 function mapCluster(entity, index, enrichment: any = {}) {
@@ -323,6 +411,176 @@ export function createDashboardRepository(client = apiClient) {
   }
 
   return {
+    async getEventMeshRuntimes(routeId) {
+      const response = await client.post(dashboardEndpoints.homepageClusters, {
+        organizationId: organizationId(),
+        clusterType: "EVENTMESH_JVM_CLUSTER",
+      });
+      const entities = parseArray(clusterEntitySchema, response.data, "homepage cluster list");
+      const entity = entities.find((item) => String(item.id ?? item.clusterId) === String(routeId) || item.name === routeId);
+      if (!entity) throw new Error(`cluster ${routeId} was not returned by the API`);
+      const clusterId = numberId(entity.id ?? entity.clusterId);
+      if (!clusterId) throw new Error("cluster response does not contain a numeric id");
+      const runtimes = await fetchRuntimes(clusterId, entity.clusterType ?? apiConfig.clusterType);
+      const config = clusterConfig(entity);
+      return {
+        data: {
+          cluster: {
+            id: String(clusterId),
+            routeId: String(routeId),
+            name: entity.name ?? String(routeId),
+            description: entity.description ?? "—",
+            clusterType: entity.clusterType ?? apiConfig.clusterType,
+            deployStatus: entity.deployStatusType ?? null,
+            region: config.region ?? "—",
+            version: entity.version ?? "—",
+            raw: entity,
+          },
+          runtimes: runtimes.map(mapRuntime),
+        },
+        meta: { source: "live", warnings: [], fetchedAt: new Date().toISOString() },
+      };
+    },
+
+    async getHomepageClusters() {
+      const response = await client.post(dashboardEndpoints.homepageClusters, {
+        organizationId: organizationId(),
+        clusterType: "EVENTMESH_JVM_CLUSTER",
+      });
+      const entities = parseArray(clusterEntitySchema, response.data, "homepage cluster list");
+      return Promise.all(entities.map(async (entity) => {
+        const clusterId = numberId(entity.id ?? entity.clusterId);
+        if (!clusterId) return { ...entity, homepageRuntimeCount: null, homepageMetaNodeCount: null, homepageNodeWarnings: ["cluster response does not contain a numeric id"] };
+        const clusterType = entity.clusterType ?? apiConfig.clusterType;
+        const [runtimesResult, topologyResult] = await Promise.all([
+          settled(() => fetchRuntimes(clusterId, clusterType)),
+          settled(() => fetchTopology(clusterId, clusterType)),
+        ]);
+        const metaNodeCount = topologyResult.ok ? countMetaNodes(topologyResult.data) : null;
+        return {
+          ...entity,
+          homepageRuntimeCount: runtimesResult.ok ? runtimesResult.data.length : null,
+          homepageMetaNodeCount: metaNodeCount,
+          homepageNodeWarnings: [
+            ...(runtimesResult.ok ? [] : [`Runtime: ${runtimesResult.error}`]),
+            ...(topologyResult.ok ? [] : [`Meta: ${topologyResult.error}`]),
+            ...(topologyResult.ok && metaNodeCount == null ? ["Meta: topology did not return a node list"] : []),
+          ],
+        };
+      }));
+    },
+
+    async getClusterLandscape(routeId) {
+      const response = await client.post(dashboardEndpoints.homepageClusters, {
+        organizationId: organizationId(),
+        clusterType: "EVENTMESH_JVM_CLUSTER",
+      });
+      const entities = parseArray(clusterEntitySchema, response.data, "homepage cluster list");
+      const entity = entities.find((item) => String(item.id ?? item.clusterId) === String(routeId) || item.name === routeId);
+      if (!entity) throw new Error(`cluster ${routeId} was not returned by the API`);
+
+      const clusterId = numberId(entity.id ?? entity.clusterId);
+      if (!clusterId) throw new Error("cluster response does not contain a numeric id");
+      const clusterType = entity.clusterType ?? apiConfig.clusterType;
+      const [runtimesResult, topologyResult] = await Promise.all([
+        settled(() => fetchRuntimes(clusterId, clusterType)),
+        settled(() => fetchTopology(clusterId, clusterType)),
+      ]);
+      const config = clusterConfig(entity);
+      const warnings = [
+        ...(runtimesResult.ok ? [] : [`Runtime：${runtimesResult.error}`]),
+        ...(topologyResult.ok ? [] : [`关联集群：${topologyResult.error}`]),
+      ];
+
+      return {
+        data: {
+          cluster: {
+            id: String(entity.id ?? entity.clusterId),
+            routeId: String(routeId),
+            name: entity.name ?? String(routeId),
+            description: entity.description ?? "—",
+            clusterType,
+            deployStatus: entity.deployStatusType ?? null,
+            region: config.region ?? "—",
+            version: entity.version ?? "—",
+            raw: entity,
+          },
+          runtimes: runtimesResult.ok ? runtimesResult.data.map(mapLandscapeNode) : [],
+          components: topologyResult.ok ? topologyResult.data.map(mapLandscapeComponent) : [],
+          runtimesAvailable: runtimesResult.ok,
+          topologyAvailable: topologyResult.ok,
+        },
+        meta: {
+          source: warnings.length ? "mixed" : "live",
+          warnings,
+          fetchedAt: new Date().toISOString(),
+        },
+      };
+    },
+
+    async getEventMeshOverview(routeId) {
+      const response = await client.post(dashboardEndpoints.homepageClusters, {
+        organizationId: organizationId(),
+        clusterType: "EVENTMESH_JVM_CLUSTER",
+      });
+      const entities = parseArray(clusterEntitySchema, response.data, "homepage cluster list");
+      const entity = entities.find((item) => String(item.id ?? item.clusterId) === String(routeId) || item.name === routeId);
+      if (!entity) throw new Error(`cluster ${routeId} was not returned by the API`);
+
+      const clusterId = numberId(entity.id ?? entity.clusterId);
+      if (!clusterId) throw new Error("cluster response does not contain a numeric id");
+      const clusterType = entity.clusterType ?? apiConfig.clusterType;
+      const [runtimesResult, topologyResult, topicsResult, groupsResult] = await Promise.all([
+        settled(() => fetchRuntimes(clusterId, clusterType)),
+        settled(() => fetchTopology(clusterId, clusterType)),
+        settled(() => fetchTopics(clusterId, clusterType)),
+        settled(() => fetchGroups(clusterId, clusterType)),
+      ]);
+      const config = clusterConfig(entity);
+      const warnings = [
+        ...(runtimesResult.ok ? [] : [`Runtime：${runtimesResult.error}`]),
+        ...(topologyResult.ok ? [] : [`关联集群：${topologyResult.error}`]),
+        ...(topicsResult.ok ? [] : [`Topic：${topicsResult.error}`]),
+        ...(groupsResult.ok ? [] : [`消费者：${groupsResult.error}`]),
+      ];
+
+      return {
+        data: {
+          cluster: {
+            id: String(entity.id ?? entity.clusterId),
+            routeId: String(routeId),
+            name: entity.name ?? String(routeId),
+            description: entity.description ?? "—",
+            clusterType,
+            deployStatus: entity.deployStatusType ?? null,
+            trusteeshipType: entity.trusteeshipType ?? null,
+            cloudProvider: config.cloudProvider ?? "—",
+            kubernetesCluster: config.kubernetesCluster ?? "—",
+            infrastructure: config.infrastructure ?? config.infrastructureType ?? "—",
+            region: config.region ?? "—",
+            version: entity.version ?? "—",
+            uptime: uptimeFrom(entity.startTimestamp ?? entity.onlineTimestamp, "—"),
+            raw: entity,
+          },
+          runtimes: runtimesResult.ok ? runtimesResult.data.map(mapLandscapeNode) : [],
+          components: topologyResult.ok ? topologyResult.data.map(mapLandscapeComponent) : [],
+          topics: topicsResult.ok ? topicsResult.data : [],
+          groups: groupsResult.ok ? groupsResult.data : [],
+          availability: {
+            runtimes: runtimesResult.ok,
+            topology: topologyResult.ok,
+            topics: topicsResult.ok,
+            groups: groupsResult.ok,
+          },
+        },
+        meta: {
+          source: warnings.length ? "mixed" : "live",
+          warnings,
+          fetchedAt: new Date().toISOString(),
+        },
+      };
+    },
+
     async createCluster(input) {
       const response = await client.post(dashboardEndpoints.createCluster, {
         organizationId: organizationId(),

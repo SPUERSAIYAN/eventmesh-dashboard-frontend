@@ -25,6 +25,9 @@
 |  | relationship | 建立关联 | `ClusterRelationshipController.addClusterRelationshipEntry`；`POST /clusterRelationship/addClusterRelationshipEntry` | 后端接口存在但已标记 `@Deprecated`；当前页面调用 `addRelations`。 |
 |  | relationship | 解除关联 | `ClusterRelationshipController.relieveRelationship`；`POST /clusterRelationship/relieveRelationship` | 后端接口存在但已标记 `@Deprecated`；当前页面调用 `removeRelation`。 |
 |  | runtime | 创建 | `ActiveCreateController.createRuntime`；`POST /organization/activeCreate/createRuntime` | 后端已有；当前“添加节点”只写入前端状态。 |
+|  | cluster | 启动 | 暂无可用后端接口 | 首页按钮使用浏览器本地 Mock 状态流转，不修改后端数据。 |
+|  | cluster | 暂停 | 暂无可用后端接口 | 首页按钮使用浏览器本地 Mock 状态流转，不修改后端数据。 |
+|  | cluster | 恢复 | 暂无可用后端接口 | 首页按钮使用浏览器本地 Mock 状态流转，不修改后端数据。 |
 | Runtime 页面 | runtime | 查询 | `RuntimeController.queryRuntimeListByClusterId`；`POST /runtime/queryRuntimeListByClusterId` | 后端已有。 |
 |  | runtime | 创建 | `ActiveCreateController.createRuntime`；`POST /organization/activeCreate/createRuntime` | 后端已有；当前 Runtime 页面为 Mock 新增。 |
 |  | runtime | 基于部署脚本创建 | `ClusterCycleController.createRuntimeByDeployScript`；`POST /organization/clusterCycleDeploy/createRuntimeByDeployScript` | 后端已有；当前页面未开放。 |

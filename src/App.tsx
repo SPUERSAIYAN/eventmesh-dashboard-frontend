@@ -148,6 +148,7 @@ function Shell({ children }) {
 
 function StatusBar() {
   const { language, locale, t } = useI18n();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(() => new Date());
@@ -160,11 +161,15 @@ function StatusBar() {
     await queryClient.invalidateQueries();
     setRefreshing(false);
   };
+  const isHomepage = location.pathname === "/clusters";
+  const isLiveQueryPage = isHomepage || /^\/clusters\/[^/]+\/(summary|overview|topology|relations|runtime)$/.test(location.pathname);
   return (
     <footer className="statusbar">
-      <span className="status-ok"><i />{language === "zh" ? "模拟数据模式 · 未连接后端" : "Mock data mode · backend disconnected"}</span>
+      <span className="status-ok"><i />{isLiveQueryPage
+        ? (language === "zh" ? "混合数据模式 · 查询已连接后端，未接入字段与写操作为 Mock" : "Mixed data mode · backend queries connected; unavailable fields and writes remain Mock")
+        : (language === "zh" ? "模拟数据模式 · 详情页未连接后端" : "Mock data mode · detail backend disconnected")}</span>
       <span className="local-time">{t("Local time")}&nbsp;&nbsp; {now.toLocaleString(locale, { hour12: false, timeZoneName: "short" })}</span>
-      <button onClick={refresh}><ReloadOutlined spin={refreshing} /> {t("Refresh")}&nbsp; 10s</button><DownOutlined />
+      <button onClick={refresh}><ReloadOutlined spin={refreshing} /> {t("Refresh")}&nbsp; {isHomepage ? (language === "zh" ? "手动" : "Manual") : "10s"}</button><DownOutlined />
     </footer>
   );
 }

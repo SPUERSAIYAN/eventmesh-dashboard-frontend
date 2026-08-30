@@ -153,13 +153,14 @@ function rowsForNode(node, language) {
   ];
   if (node.kind === "cluster" && node.pathKeys) {
     const realChildren = (node.children ?? []).filter((child) => !child.virtual);
-    const runtimeCount = flattenNodes(node, []).filter((child) => child.kind === "runtime").length;
+    const isRootCluster = node.relation === "ROOT";
+    const instanceCount = flattenNodes(node, []).filter((child) => child.kind === "runtime" && (isRootCluster ? child.relation === "DIRECT_RUNTIME" : child.relation === "RUNTIME_MEMBER")).length;
     return [
       [zh ? "节点类型" : "Node type", resourceKindCopy(node, language)],
       [zh ? "关系类型" : "Relationship", relationCopy(node.relation, language)],
       [zh ? "运行状态" : "Status", statusCopy(node.status, language)],
       [zh ? "版本" : "Version", displayValue(node.version)],
-      [zh ? "Runtime 数量" : "Runtimes", runtimeCount],
+      [isRootCluster ? (zh ? "直属 Runtime" : "Direct runtimes") : (zh ? "实例 / 节点" : "Instances / nodes"), instanceCount],
       [zh ? "真实子关系" : "Relationship children", realChildren.length],
       [zh ? "集群 ID" : "Cluster ID", displayValue(node.id)],
       [zh ? "说明" : "Description", displayValue(node.description)],

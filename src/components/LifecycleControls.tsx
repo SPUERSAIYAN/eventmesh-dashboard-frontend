@@ -53,9 +53,11 @@ type LifecycleActionButtonsProps = {
   status: DeployStatusType;
   compact?: boolean;
   showUninstall?: boolean;
+  loading?: boolean;
+  onAction?: (action: LifecycleAction) => Promise<void> | void;
 };
 
-export function LifecycleActionButtons({ kind, resourceId, resourceName, status, compact = false, showUninstall = true }: LifecycleActionButtonsProps) {
+export function LifecycleActionButtons({ kind, resourceId, resourceName, status, compact = false, showUninstall = true, loading = false, onAction }: LifecycleActionButtonsProps) {
   const { modal, message } = AntApp.useApp();
   const { perform } = useMockLifecycle();
   const primaryAction = primaryLifecycleAction(status);
@@ -68,14 +70,24 @@ export function LifecycleActionButtons({ kind, resourceId, resourceName, status,
     const subject = kind === "cluster" ? "集群" : "Runtime";
     const destructive = action === "uninstall";
     modal.confirm({
-      title: `${copy.label}${subject}？`,
+      title: `${copy.label}${subject}？${onAction ? "" : "（模拟操作）"}`,
       content: destructive
         ? `${resourceName} 注销后将停止服务，并进入 UNINSTALL → UNINSTALL_ING → UNINSTALL_SUCCESS。此模拟操作不会删除后端数据。`
-        : `${resourceName} 将进入 ${copy.pending}，随后流转为 ${copy.running} 和 ${copy.success}。`,
-      okText: copy.label,
+        : `${resourceName} 将在浏览器本地进入 ${copy.pending}，随后流转为 ${copy.running} 和 ${copy.success}。此模拟操作不会修改后端数据。`,
+      okText: onAction ? copy.label : `模拟${copy.label}`,
       cancelText: "取消",
       okButtonProps: { danger: destructive },
-      onOk: () => {
+      onOk: async () => {
+        if (onAction) {
+          try {
+            await onAction(action);
+            message.success(`${copy.label}操作已完成`);
+          } catch (error) {
+            message.error(error instanceof Error ? error.message : `${copy.label}操作失败`);
+            throw error;
+          }
+          return;
+        }
         if (perform({ kind, id: resourceId, name: resourceName, action, currentStatus: status })) {
           message.success(`${copy.label}操作已提交`);
         }
@@ -83,7 +95,7 @@ export function LifecycleActionButtons({ kind, resourceId, resourceName, status,
     });
   };
 
-  if (transitioning) return <Button type={buttonType} loading disabled>处理中</Button>;
+  if (transitioning || loading) return <Button type={buttonType} loading disabled>处理中</Button>;
   if (status === "UNINSTALL_SUCCESS") return compact ? null : <Button disabled icon={<StopOutlined />}>已注销</Button>;
 
   return <span className={`lifecycle-actions ${compact ? "compact" : ""}`.trim()}>
