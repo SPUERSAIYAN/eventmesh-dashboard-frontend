@@ -1,6 +1,6 @@
 import { isComponentPanel, isStorageEngine } from "./config/clusterDefinitions.ts";
 
-const clusterViews = new Set(["summary", "overview", "topology", "relations", "runtime", "meta", "storage", "topics", "connections", "consumers", "operations", "messages", "security", "configuration"]);
+const clusterViews = new Set(["summary", "overview", "topology", "relations", "runtime", "meta", "storage", "topics", "connections", "consumers", "operations", "configuration"]);
 
 export function normalizeClusterView(view, legacyTab = null) {
   if (clusterViews.has(view)) return view;

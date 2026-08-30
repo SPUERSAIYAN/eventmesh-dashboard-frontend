@@ -116,26 +116,28 @@ export function normalizeMockRelationState(value: unknown): MockRelationState {
   if (!value || typeof value !== "object") return defaultMockRelationState();
   const state = value as Partial<MockRelationState>;
   if (state.version !== 1 || !Array.isArray(state.relations)) return defaultMockRelationState();
-  const validComponentIds = new Set(mockComponentClusters.map((item) => item.id));
   const unique = new Map<string, ClusterRelation>();
   state.relations.forEach((item) => {
-    if (!item || !validComponentIds.has(item.componentClusterId) || !item.eventMeshClusterId) return;
-    const component = mockComponentClusters.find((candidate) => candidate.id === item.componentClusterId)!;
-    const key = `${item.eventMeshClusterId}:${component.type}:${component.id}`;
-    unique.set(key, { ...item, componentType: component.type, status: "active" });
+    if (!item || !item.componentClusterId || !item.eventMeshClusterId) return;
+    const component = mockComponentClusters.find((candidate) => candidate.id === item.componentClusterId);
+    const componentType = component?.type ?? item.componentType;
+    if (!componentType || !["runtime", "meta", "kafka", "rocketmq"].includes(componentType)) return;
+    const key = `${item.eventMeshClusterId}:${componentType}:${item.componentClusterId}`;
+    unique.set(key, { ...item, componentType, status: "active" });
   });
   return { version: 1, relations: [...unique.values()] };
 }
 
-export function addClusterRelations(state: MockRelationState, eventMeshClusterId: string, componentClusterIds: string[], createdAt = new Date().toISOString()): MockRelationState {
+export function addClusterRelations(state: MockRelationState, eventMeshClusterId: string, componentClusterIds: string[], createdAt = new Date().toISOString(), fallbackComponentType?: ComponentClusterType): MockRelationState {
   const existing = new Set(state.relations.map((item) => `${item.eventMeshClusterId}:${item.componentType}:${item.componentClusterId}`));
   const additions = componentClusterIds.flatMap((componentClusterId) => {
     const component = mockComponentClusters.find((item) => item.id === componentClusterId);
-    if (!component) return [];
-    const key = `${eventMeshClusterId}:${component.type}:${componentClusterId}`;
+    const componentType = component?.type ?? fallbackComponentType;
+    if (!componentType) return [];
+    const key = `${eventMeshClusterId}:${componentType}:${componentClusterId}`;
     if (existing.has(key)) return [];
     existing.add(key);
-    return [{ id: `relation-${eventMeshClusterId}-${componentClusterId}`, eventMeshClusterId, componentClusterId, componentType: component.type, status: "active" as const, createdAt }];
+    return [{ id: `relation-${eventMeshClusterId}-${componentClusterId}`, eventMeshClusterId, componentClusterId, componentType, status: "active" as const, createdAt }];
   });
   return { version: 1, relations: [...state.relations, ...additions] };
 }

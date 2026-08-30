@@ -10,6 +10,7 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 
 ## Backend dependency and change boundary
 
+- Integrate backend data one page at a time. Each task may modify backend integration only for the page explicitly named by the user; do not connect, refactor, or otherwise change backend integration on any other page unless the user separately requests that page. For implementation summaries and completion reports, describe only the current page unless the user explicitly asks for a broader rollup.
 - This frontend project depends on the backend project at `/Users/lijiahao/Documents/EventMesh/eventmesh-dashboard`.
 - Treat the backend repository as read-only context. It may be inspected to understand API contracts, authentication, permissions, response structures, database-backed capabilities, and runtime configuration, but its code and configuration must not be modified from frontend tasks.
 - Do not change backend Java code, Maven configuration, resource files, SQL or Flyway migrations, deployment files, or backend tests to accommodate frontend implementation.
@@ -66,6 +67,7 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Show the large cluster identity header (cluster name, status, metadata, copy/add actions, and current-cluster heading) only inside the first-level `Cluster` module (`概要` and `集群拓扑`). Runtime/Broker, Topic, client connection, Consumer, Operation, Message, and Security pages start directly with their own module content and must not repeat this header.
 - Treat each cluster module's `概览` destination as a monitoring summary with meaningful operational metrics and trends; do not duplicate the module's resource list there. Keep detailed Runtime and Meta node tables on their dedicated second-level destinations.
 - Topic and Connections overviews must summarize their own health, throughput, latency, capacity, and trend signals; their sibling list destinations contain the resource-level details. Keep the sidebar collapse control outside the scrolling navigation area and fixed to the sidebar footer so long expanded menus cannot overlap it.
+- Remove the standalone `Message` and `Security` cluster modules from the sidebar and frontend routes. Message monitoring duplicates Topic/Consumer surfaces while its throughput and backlog data remain unavailable, and Security has no stable TLS, ACL, or network-policy backend contract. Reintroduce either module only after its corresponding read APIs are available.
 - Label the client-to-Runtime connection module as `客户端连接`; reserve `Connector / Pipeline` terminology for the separate data-integration capability.
 - On cluster-scoped pages, group related left-navigation destinations under expandable first-level modules and show clickable second-level labels underneath, following the Know Streaming information-architecture logic while retaining the EventMesh visual system. Keep URL state and active highlighting synchronized with second-level selection.
 - Keep the existing cluster topology experience available from the cluster-scoped page while the new mock management views are active.

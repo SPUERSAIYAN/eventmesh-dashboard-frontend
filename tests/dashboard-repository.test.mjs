@@ -85,6 +85,173 @@ test("loads the detail landscape from basic, Runtime and topology query APIs", a
   assert.deepEqual(requests.map((item) => item.url), [dashboardEndpoints.homepageClusters, dashboardEndpoints.runtimes, dashboardEndpoints.topology]);
 });
 
+test("loads the Meta overview from EventMesh topology trees and counts shared relations", async () => {
+  const requests = [];
+  const repository = createDashboardRepository({
+    async post(url, body) {
+      requests.push({ url, body });
+      if (url === dashboardEndpoints.homepageClusters) return { data: [
+        { id: 1001, name: "prod-eventmesh-east", clusterType: "EVENTMESH_JVM_CLUSTER" },
+        { id: 1002, name: "prod-eventmesh-south", clusterType: "EVENTMESH_JVM_CLUSTER" },
+        { id: 1003, name: "staging-eventmesh", clusterType: "EVENTMESH_JVM_CLUSTER" },
+      ] };
+      if (url === dashboardEndpoints.topology && body.clusterId === 1001) return { data: [
+        { id: 2001, name: "meta-shared", clusterType: "EVENTMESH_JVM_META", deployStatusType: "CREATE_SUCCESS", children: [{ id: 20101, nodeType: "RUNTIME", deployStatusType: "CREATE_SUCCESS" }] },
+      ] };
+      if (url === dashboardEndpoints.topology && body.clusterId === 1002) return { data: [
+        { id: 2001, name: "meta-shared", clusterType: "EVENTMESH_JVM_META", deployStatusType: "CREATE_SUCCESS", children: [{ id: 20101, nodeType: "RUNTIME", deployStatusType: "CREATE_SUCCESS" }] },
+      ] };
+      if (url === dashboardEndpoints.topology && body.clusterId === 1003) return { data: [
+        { id: 2002, name: "meta-staging", clusterType: "EVENTMESH_META_NACOS", deployStatusType: "CREATE_SUCCESS", children: null },
+      ] };
+      throw new Error(`unexpected POST ${url}`);
+    },
+  });
+
+  const result = await repository.getMetaOverview("prod-eventmesh-south");
+  assert.equal(result.data.components.length, 1);
+  assert.equal(result.data.components[0].name, "meta-shared");
+  assert.equal(result.data.components[0].referenceCount, 2);
+  assert.equal(result.data.components[0].nodes.length, 1);
+  assert.equal(result.data.relationCount, 3);
+  assert.equal(result.data.nodesAvailable, true);
+  assert.equal(result.meta.source, "live");
+  assert.deepEqual(requests.map((item) => item.url), [
+    dashboardEndpoints.homepageClusters,
+    dashboardEndpoints.topology,
+    dashboardEndpoints.topology,
+    dashboardEndpoints.topology,
+  ]);
+});
+
+test("keeps the current Meta overview live when another EventMesh topology fails", async () => {
+  const repository = createDashboardRepository({
+    async post(url, body) {
+      if (url === dashboardEndpoints.homepageClusters) return { data: [
+        { id: 1001, name: "prod-eventmesh-east", clusterType: "EVENTMESH_JVM_CLUSTER" },
+        { id: 1002, name: "prod-eventmesh-south", clusterType: "EVENTMESH_JVM_CLUSTER" },
+      ] };
+      if (url === dashboardEndpoints.topology && body.clusterId === 1001) return { data: [
+        { id: 2001, name: "meta-shared", clusterType: "EVENTMESH_JVM_META", children: [] },
+      ] };
+      if (url === dashboardEndpoints.topology && body.clusterId === 1002) throw new Error("topology unavailable");
+      throw new Error(`unexpected POST ${url}`);
+    },
+  });
+
+  const result = await repository.getMetaOverview("prod-eventmesh-east");
+  assert.equal(result.data.components.length, 1);
+  assert.equal(result.data.queriedEventMeshClusterCount, 1);
+  assert.equal(result.meta.source, "mixed");
+  assert.match(result.meta.warnings[0], /prod-eventmesh-south/);
+});
+
+test("loads the Meta cluster list from cluster, Runtime and EventMesh topology queries", async () => {
+  const requests = [];
+  const repository = createDashboardRepository({
+    async post(url, body) {
+      requests.push({ url, body });
+      if (url === dashboardEndpoints.homepageClusters) return { data: [
+        { id: 1001, name: "prod-eventmesh-east", clusterType: "EVENTMESH_JVM_CLUSTER" },
+        { id: 1002, name: "prod-eventmesh-south", clusterType: "EVENTMESH_JVM_CLUSTER" },
+      ] };
+      if (url === dashboardEndpoints.clusters && body.clusterType === "EVENTMESH_JVM_META") return { data: [
+        { id: 2001, name: "meta-east-primary", clusterType: "EVENTMESH_JVM_META", version: "1.11.0", deployStatusType: "CREATE_SUCCESS", description: "ETCD Meta", config: { region: "华东 1（杭州）" } },
+      ] };
+      if (url === dashboardEndpoints.clusters && body.clusterType === "EVENTMESH_META_NACOS") return { data: [
+        { id: 2002, name: "meta-north-nacos", clusterType: "EVENTMESH_META_NACOS", version: "2.3.2", deployStatusType: "CREATE_SUCCESS", description: "Nacos Meta", config: { region: "华北 2（北京）" } },
+      ] };
+      if (url === dashboardEndpoints.clusters && body.clusterType === "EVENTMESH_META_ETCD") return { data: [] };
+      if (url === dashboardEndpoints.runtimes && body.clusterId === 2001) return { data: [{ id: 20101, name: "meta-east-01", deployStatusType: "CREATE_SUCCESS" }] };
+      if (url === dashboardEndpoints.runtimes && body.clusterId === 2002) return { data: [] };
+      if (url === dashboardEndpoints.topology && body.clusterId === 1001) return { data: [
+        { id: 2001, name: "meta-east-primary", clusterType: "EVENTMESH_JVM_META", children: [] },
+      ] };
+      if (url === dashboardEndpoints.topology && body.clusterId === 1002) return { data: [
+        { id: 2001, name: "meta-east-primary", clusterType: "EVENTMESH_JVM_META", children: [] },
+      ] };
+      throw new Error(`unexpected POST ${url}`);
+    },
+  });
+
+  const result = await repository.getMetaClusterList("prod-eventmesh-south");
+  assert.deepEqual(result.data.clusters.map((item) => [item.id, item.nodes.length, item.referenceCount, item.currentAssociated]), [
+    ["2001", 1, 2, true],
+    ["2002", 0, 0, false],
+  ]);
+  assert.deepEqual(result.data.clusters[0].relatedEventMeshes.map((item) => [item.id, item.routeId]), [
+    ["1001", "prod-eventmesh-east"],
+    ["1002", "prod-eventmesh-south"],
+  ]);
+  assert.deepEqual(result.data.clusters[1].relatedEventMeshes, []);
+  assert.equal(result.data.referenceCountsComplete, true);
+  assert.equal(result.meta.source, "live");
+  assert.equal(requests.filter((item) => item.url === dashboardEndpoints.clusters).length, 3);
+  assert.equal(requests.filter((item) => item.url === dashboardEndpoints.runtimes).length, 2);
+  assert.equal(requests.filter((item) => item.url === dashboardEndpoints.topology).length, 2);
+});
+
+test("keeps available Meta rows when one Meta cluster type query fails", async () => {
+  const repository = createDashboardRepository({
+    async post(url, body) {
+      if (url === dashboardEndpoints.homepageClusters) return { data: [{ id: 1001, name: "prod-eventmesh-east", clusterType: "EVENTMESH_JVM_CLUSTER" }] };
+      if (url === dashboardEndpoints.clusters && body.clusterType === "EVENTMESH_JVM_META") return { data: [{ id: 2001, name: "meta-east", clusterType: "EVENTMESH_JVM_META" }] };
+      if (url === dashboardEndpoints.clusters && body.clusterType === "EVENTMESH_META_NACOS") throw new Error("Nacos list unavailable");
+      if (url === dashboardEndpoints.clusters) return { data: [] };
+      if (url === dashboardEndpoints.runtimes) return { data: [] };
+      if (url === dashboardEndpoints.topology) return { data: [] };
+      throw new Error(`unexpected POST ${url}`);
+    },
+  });
+
+  const result = await repository.getMetaClusterList("prod-eventmesh-east");
+  assert.equal(result.data.clusters.length, 1);
+  assert.equal(result.meta.source, "mixed");
+  assert.match(result.meta.warnings[0], /Nacos list unavailable/);
+});
+
+test("loads the storage overview from Kafka and RocketMQ clusters plus EventMesh topology trees", async () => {
+  const requests = [];
+  const repository = createDashboardRepository({
+    async post(url, body) {
+      requests.push({ url, body });
+      if (url === dashboardEndpoints.homepageClusters) return { data: [
+        { id: 1001, name: "prod-eventmesh-east", clusterType: "EVENTMESH_JVM_CLUSTER" },
+        { id: 1002, name: "prod-eventmesh-south", clusterType: "EVENTMESH_JVM_CLUSTER" },
+      ] };
+      if (url === dashboardEndpoints.clusters && body.clusterType === "STORAGE_KAFKA_CLUSTER") return { data: [
+        { id: 3001, name: "kafka-orders", clusterType: "STORAGE_KAFKA_CLUSTER", version: "3.8.1", deployStatusType: "CREATE_SUCCESS", config: { region: "华东 1（杭州）" } },
+      ] };
+      if (url === dashboardEndpoints.clusters && body.clusterType === "STORAGE_ROCKETMQ_CLUSTER") return { data: [
+        { id: 4001, name: "rocketmq-shared", clusterType: "STORAGE_ROCKETMQ_CLUSTER", version: "5.3.1", deployStatusType: "CREATE_SUCCESS", config: { region: "华南 1（深圳）" } },
+      ] };
+      if (url === dashboardEndpoints.topology && body.clusterId === 1001) return { data: [
+        { id: 3001, name: "kafka-orders", clusterType: "STORAGE_KAFKA_CLUSTER", children: [] },
+      ] };
+      if (url === dashboardEndpoints.topology && body.clusterId === 1002) return { data: [
+        { id: 4001, name: "rocketmq-shared", clusterType: "STORAGE_ROCKETMQ_CLUSTER", children: [] },
+      ] };
+      if (url === dashboardEndpoints.runtimes && body.clusterId === 4001) return { data: [
+        { id: 4101, name: "rocketmq-broker-01", deployStatusType: "CREATE_SUCCESS" },
+        { id: 4102, name: "rocketmq-broker-02", deployStatusType: "CREATE_SUCCESS" },
+      ] };
+      throw new Error(`unexpected POST ${url}`);
+    },
+  });
+
+  const result = await repository.getStorageOverview("prod-eventmesh-south");
+  assert.equal(result.data.inventoryCount, 2);
+  assert.equal(result.data.components.length, 1);
+  assert.equal(result.data.components[0].name, "rocketmq-shared");
+  assert.equal(result.data.components[0].nodes.length, 2);
+  assert.equal(result.data.components[0].referenceCount, 1);
+  assert.equal(result.data.relationCount, 2);
+  assert.equal(result.meta.source, "live");
+  assert.equal(requests.filter((item) => item.url === dashboardEndpoints.clusters).length, 2);
+  assert.equal(requests.filter((item) => item.url === dashboardEndpoints.topology).length, 2);
+  assert.equal(requests.filter((item) => item.url === dashboardEndpoints.runtimes).length, 1);
+});
+
 test("loads Runtime pages from the EventMesh cluster and direct Runtime query", async () => {
   const requests = [];
   const repository = createDashboardRepository({
@@ -254,4 +421,193 @@ test("accepts an empty live cluster list and rejects total API failure", async (
 test("dashboard endpoints exclude unfinished write, authentication, relation, health and connection APIs", () => {
   const endpointText = JSON.stringify(dashboardEndpoints).toLowerCase();
   ["clustercycledeploy", "/auth", "member", "createeventmeshspace", "queryrelationcluster", "health", "connection", "createtopic", "deletegroup"].forEach((name) => assert.equal(endpointText.includes(name), false));
+});
+
+test("loads Kafka inventory, Brokers and EventMesh reference counts from backend APIs", async () => {
+  const repository = createDashboardRepository({
+    async post(url, body) {
+      if (url === dashboardEndpoints.homepageClusters) return { data: [
+        { id: 1001, name: "eventmesh-east", clusterType: "EVENTMESH_JVM_CLUSTER" },
+        { id: 1002, name: "eventmesh-south", clusterType: "EVENTMESH_JVM_CLUSTER" },
+      ] };
+      if (url === dashboardEndpoints.clusters) return { data: [{ id: 3001, name: "kafka-orders", clusterType: body.clusterType, version: "3.8.1", deployStatusType: "CREATE_SUCCESS" }] };
+      if (url === dashboardEndpoints.topology && body.clusterId === 1001) return { data: [{ id: 3001, name: "kafka-orders", clusterType: "STORAGE_KAFKA_CLUSTER" }] };
+      if (url === dashboardEndpoints.topology && body.clusterId === 1002) return { data: [{ id: 3001, name: "kafka-orders", clusterType: "STORAGE_KAFKA_CLUSTER" }] };
+      if (url === dashboardEndpoints.runtimes) return { data: [{ id: 31, name: "broker-1", host: "10.0.0.31", port: 9092 }, { id: 32, name: "broker-2", host: "10.0.0.32", port: 9092 }] };
+      throw new Error(`unexpected POST ${url}`);
+    },
+  });
+  const result = await repository.getKafkaClusterList("eventmesh-south");
+  assert.equal(result.data.clusters[0].nodes.length, 2);
+  assert.equal(result.data.clusters[0].referenceCount, 2);
+  assert.equal(result.data.clusters[0].currentAssociated, true);
+  assert.equal(result.meta.source, "live");
+});
+
+test("loads Kafka Topic and consumer-group fields while preserving unavailable-field boundaries", async () => {
+  const repository = createDashboardRepository({
+    async post(url, body) {
+      if (url === dashboardEndpoints.homepageClusters) return { data: [{ id: 1001, name: "eventmesh-east", clusterType: "EVENTMESH_JVM_CLUSTER" }] };
+      if (url === dashboardEndpoints.clusters) return { data: [{ id: 3001, name: "kafka-orders", clusterType: body.clusterType }] };
+      if (url === dashboardEndpoints.topology) return { data: [{ id: 3001, name: "kafka-orders", clusterType: "STORAGE_KAFKA_CLUSTER" }] };
+      if (url === dashboardEndpoints.runtimes) return { data: [{ id: 31, name: "broker-1", host: "10.0.0.31", port: 9092 }] };
+      if (url === dashboardEndpoints.topics) return { data: [{ id: 41, topicName: "orders", readQueueNum: 12, writeQueueNum: 12, replicationFactor: 3 }] };
+      if (url === dashboardEndpoints.groups) return { data: [{ id: 51, name: "order-workers", ownType: "KAFKA" }] };
+      throw new Error(`unexpected POST ${url}`);
+    },
+  });
+  const result = await repository.getKafkaClusterDetail("eventmesh-east", "3001");
+  assert.equal(result.data.topics[0].name, "orders");
+  assert.equal(result.data.topics[0].partitions, 12);
+  assert.equal(result.data.topics[0].replicas, 3);
+  assert.equal(result.data.groups[0].name, "order-workers");
+  assert.equal(result.data.groups[0].ownType, "KAFKA");
+  assert.equal(result.data.topicsAvailable, true);
+  assert.equal(result.data.groupsAvailable, true);
+});
+
+test("loads RocketMQ inventory, Brokers, Topics, groups and EventMesh references with the Kafka data boundary", async () => {
+  const requests = [];
+  const repository = createDashboardRepository({
+    async post(url, body) {
+      requests.push({ url, body });
+      if (url === dashboardEndpoints.homepageClusters) return { data: [
+        { id: 1001, name: "eventmesh-east", clusterType: "EVENTMESH_JVM_CLUSTER" },
+        { id: 1002, name: "eventmesh-south", clusterType: "EVENTMESH_JVM_CLUSTER" },
+      ] };
+      if (url === dashboardEndpoints.clusters) return { data: [{ id: 4001, name: "rocketmq-orders", clusterType: body.clusterType, version: "5.3.1", deployStatusType: "CREATE_SUCCESS" }] };
+      if (url === dashboardEndpoints.topology && body.clusterId === 1001) return { data: [{ id: 4001, name: "rocketmq-orders", clusterType: "STORAGE_ROCKETMQ_CLUSTER" }] };
+      if (url === dashboardEndpoints.topology && body.clusterId === 1002) return { data: [{ id: 4001, name: "rocketmq-orders", clusterType: "STORAGE_ROCKETMQ_CLUSTER" }] };
+      if (url === dashboardEndpoints.runtimes) return { data: [{ id: 61, name: "broker-a", host: "10.0.0.61", port: 10911, clusterType: "STORAGE_ROCKETMQ_BROKER_MAIN_SLAVE" }] };
+      if (url === dashboardEndpoints.topics) return { data: [{ id: 71, topicName: "orders", readQueueNum: 8, writeQueueNum: 8, replicationFactor: 2 }] };
+      if (url === dashboardEndpoints.groups) return { data: [{ id: 81, name: "order-workers", ownType: "ROCKETMQ" }] };
+      throw new Error(`unexpected POST ${url}`);
+    },
+  });
+  const list = await repository.getRocketMqClusterList("eventmesh-south");
+  assert.equal(list.data.clusters[0].nodes.length, 1);
+  assert.equal(list.data.clusters[0].nodes[0].clusterType, "STORAGE_ROCKETMQ_BROKER_MAIN_SLAVE");
+  assert.equal(list.data.clusters[0].referenceCount, 2);
+  assert.equal(list.data.clusters[0].currentAssociated, true);
+  const detail = await repository.getRocketMqClusterDetail("eventmesh-east", "4001");
+  assert.equal(detail.data.topics[0].name, "orders");
+  assert.equal(detail.data.topics[0].partitions, 8);
+  assert.equal(detail.data.groups[0].name, "order-workers");
+  assert.equal(detail.data.groups[0].ownType, "ROCKETMQ");
+  assert.equal(requests.some((item) => item.url === dashboardEndpoints.clusters && item.body.clusterType === "STORAGE_ROCKETMQ_CLUSTER"), true);
+});
+
+test("loads the storage relationship list from Kafka and RocketMQ EventMesh topology trees", async () => {
+  const repository = createDashboardRepository({
+    async post(url, body) {
+      if (url === dashboardEndpoints.homepageClusters) return { data: [
+        { id: 1001, name: "eventmesh-east", clusterType: "EVENTMESH_JVM_CLUSTER" },
+        { id: 1002, name: "eventmesh-south", clusterType: "EVENTMESH_JVM_CLUSTER" },
+      ] };
+      if (url === dashboardEndpoints.clusters && body.clusterType === "STORAGE_KAFKA_CLUSTER") return { data: [{ id: 3001, name: "kafka-orders", clusterType: body.clusterType }] };
+      if (url === dashboardEndpoints.clusters && body.clusterType === "STORAGE_ROCKETMQ_CLUSTER") return { data: [{ id: 4001, name: "rocketmq-shared", clusterType: body.clusterType }] };
+      if (url === dashboardEndpoints.topology && body.clusterId === 1001) return { data: [
+        { id: 3001, name: "kafka-orders", clusterType: "STORAGE_KAFKA_CLUSTER" },
+        { id: 4001, name: "rocketmq-shared", clusterType: "STORAGE_ROCKETMQ_CLUSTER" },
+      ] };
+      if (url === dashboardEndpoints.topology && body.clusterId === 1002) return { data: [
+        { id: 4001, name: "rocketmq-shared", clusterType: "STORAGE_ROCKETMQ_CLUSTER" },
+      ] };
+      if (url === dashboardEndpoints.runtimes && body.clusterId === 3001) return { data: [{ id: 31, name: "kafka-broker" }] };
+      if (url === dashboardEndpoints.runtimes && body.clusterId === 4001) return { data: [{ id: 41, name: "rocketmq-broker" }] };
+      throw new Error(`unexpected POST ${url}`);
+    },
+  });
+  const result = await repository.getStorageRelationshipList("eventmesh-east");
+  assert.deepEqual(result.data.relationships.map((item) => [item.component.type, item.component.name, item.eventMesh.name, item.current]), [
+    ["kafka", "kafka-orders", "eventmesh-east", true],
+    ["rocketmq", "rocketmq-shared", "eventmesh-east", true],
+    ["rocketmq", "rocketmq-shared", "eventmesh-south", false],
+  ]);
+  assert.equal(result.data.relationships[0].component.nodes.length, 1);
+  assert.equal(result.data.relationships[0].createTime, null);
+  assert.equal(result.meta.source, "live");
+});
+
+test("loads the Topic overview count and queue configuration from the backend", async () => {
+  const requests = [];
+  const repository = createDashboardRepository({
+    async post(url, body) {
+      requests.push({ url, body });
+      if (url === dashboardEndpoints.homepageClusters) return { data: [{ id: 1001, name: "eventmesh-east", clusterType: "EVENTMESH_JVM_CLUSTER" }] };
+      if (url === dashboardEndpoints.topics) return { data: [
+        { id: 71, topicName: "orders", readQueueNum: 8, writeQueueNum: 12, replicationFactor: 3 },
+        { id: 72, topicName: "payments", readQueueNum: 4, writeQueueNum: 4, replicationFactor: 2 },
+      ] };
+      throw new Error(`unexpected POST ${url}`);
+    },
+  });
+  const result = await repository.getTopicOverview("eventmesh-east");
+  assert.deepEqual(result.data.topics.map((item) => [item.name, item.partitions]), [["orders", 12], ["payments", 4]]);
+  assert.equal(result.data.queueCount, 16);
+  assert.equal(result.data.queueCountComplete, true);
+  assert.deepEqual(requests, [
+    { url: dashboardEndpoints.homepageClusters, body: { organizationId: 1, clusterType: "EVENTMESH_JVM_CLUSTER" } },
+    { url: dashboardEndpoints.topics, body: { clusterId: 1001, organizationId: 1, clusterType: "EVENTMESH_JVM_CLUSTER", topicName: null } },
+  ]);
+});
+
+test("loads consumer groups and their Topic subscriptions from the backend", async () => {
+  const requests = [];
+  const repository = createDashboardRepository({
+    async post(url, body) {
+      requests.push({ url, body });
+      if (url === dashboardEndpoints.homepageClusters) return { data: [{ id: 1001, name: "eventmesh-east", clusterType: "EVENTMESH_JVM_CLUSTER" }] };
+      if (url === dashboardEndpoints.groups) return { data: [
+        { id: 6001, name: "order-service", type: 0, ownType: "USER", status: 1, createTime: "2026-08-28T14:03:52" },
+        { id: 6101, name: "order-producer", type: 1, ownType: "USER", status: 1 },
+      ] };
+      if (url === dashboardEndpoints.topics) return { data: [{ id: 5001, topicName: "order-created" }] };
+      if (url === dashboardEndpoints.groupsByTopic) return { data: [{ id: 6001, name: "order-service", type: 0 }] };
+      throw new Error(`unexpected POST ${url}`);
+    },
+  });
+  const result = await repository.getConsumerGroups("eventmesh-east");
+  assert.equal(result.data.groups.length, 1);
+  assert.deepEqual(result.data.groups[0].topics, ["order-created"]);
+  assert.equal(result.data.groups[0].databaseStatus, 1);
+  assert.equal(result.data.groups[0].ownType, "USER");
+  assert.deepEqual(requests.at(-1), { url: dashboardEndpoints.groupsByTopic, body: { id: 5001 } });
+});
+
+test("loads operation history fields from the backend without treating state as deploy status", async () => {
+  const requests = [];
+  const repository = createDashboardRepository({
+    async post(url, body) {
+      requests.push({ url, body });
+      if (url === dashboardEndpoints.homepageClusters) return { data: [{ id: 1001, name: "eventmesh-east", clusterType: "EVENTMESH_JVM_CLUSTER" }] };
+      if (url === dashboardEndpoints.operations) return { data: [
+        { id: 1, clusterId: 1001, operationType: "CREATE", targetType: "CLUSTER", state: 2, content: "创建集群", operationUser: "admin", result: "Success", createTime: "2026-07-29T14:03:52" },
+      ] };
+      throw new Error(`unexpected POST ${url}`);
+    },
+  });
+  const result = await repository.getOperationHistory("eventmesh-east");
+  assert.deepEqual(result.data.operations[0], {
+    id: "1", clusterId: "1001", operationType: "CREATE", targetType: "CLUSTER", state: 2,
+    content: "创建集群", createTime: "2026-07-29T14:03:52", endTime: null, operationUser: "admin", result: "Success",
+  });
+  assert.deepEqual(requests.at(-1), { url: dashboardEndpoints.operations, body: { clusterId: 1001 } });
+});
+
+test("keeps backend Kafka rows from EventMesh topology when the inventory query is unavailable", async () => {
+  const repository = createDashboardRepository({
+    async post(url, body) {
+      if (url === dashboardEndpoints.homepageClusters) return { data: [{ id: 1001, name: "eventmesh-east", clusterType: "EVENTMESH_JVM_CLUSTER" }] };
+      if (url === dashboardEndpoints.clusters) throw new Error("inventory unavailable");
+      if (url === dashboardEndpoints.topology) return { data: [{ id: 3001, name: "kafka-from-tree", clusterType: "STORAGE_KAFKA_CLUSTER" }] };
+      if (url === dashboardEndpoints.runtimes) return { data: [{ id: 31, name: "broker-1" }] };
+      throw new Error(`unexpected POST ${url} ${body?.clusterType ?? ""}`);
+    },
+  });
+  const result = await repository.getKafkaClusterList("eventmesh-east");
+  assert.equal(result.data.clusters[0].name, "kafka-from-tree");
+  assert.equal(result.data.clusters[0].nodes.length, 1);
+  assert.equal(result.meta.source, "mixed");
+  assert.match(result.meta.warnings[0], /inventory unavailable/);
 });

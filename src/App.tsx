@@ -8,7 +8,7 @@ import {
   SettingOutlined,
   BellOutlined, HomeOutlined, CheckCircleOutlined, ExclamationCircleOutlined,
   CloseCircleOutlined, QuestionCircleOutlined,
-  ApartmentOutlined, MessageOutlined, SafetyOutlined,
+  ApartmentOutlined,
 } from "@ant-design/icons";
 import { Alert, App as AntApp, Button, ConfigProvider, Input, Modal, Pagination, Select, Spin, Tabs, Tag, Tooltip } from "antd";
 import enUS from "antd/locale/en_US";
@@ -69,8 +69,6 @@ const clusterScopedItems = [
   ] },
   { key: "consumers", label: "Consumer", icon: TeamOutlined, view: "consumers" },
   { key: "operations", label: "Operations", icon: ToolOutlined, view: "operations" },
-  { key: "messages", label: "Message", icon: MessageOutlined, view: "messages" },
-  { key: "security", label: "Security", icon: SafetyOutlined, view: "security" },
 ];
 
 function Shell({ children }) {
@@ -162,7 +160,22 @@ function StatusBar() {
     setRefreshing(false);
   };
   const isHomepage = location.pathname === "/clusters";
-  const isLiveQueryPage = isHomepage || /^\/clusters\/[^/]+\/(summary|overview|topology|relations|runtime)$/.test(location.pathname);
+  const isStorageOverviewLive = /^\/clusters\/[^/]+\/storage$/.test(location.pathname)
+    && [null, "overview", "kafka", "rocketmq", "relations"].includes(new URLSearchParams(location.search).get("section"));
+  const isStorageConsoleLive = /^\/clusters\/[^/]+\/storage\/(?:kafka|rocketmq)\/[^/]+(?:\/[^/]+)?$/.test(location.pathname);
+  const isTopicQueryLive = /^\/clusters\/[^/]+\/topics$/.test(location.pathname);
+  const isConnectionQueryLive = /^\/clusters\/[^/]+\/connections$/.test(location.pathname);
+  const isConsumerQueryLive = /^\/clusters\/[^/]+\/consumers$/.test(location.pathname);
+  const isOperationQueryLive = /^\/clusters\/[^/]+\/operations$/.test(location.pathname);
+  const isLiveQueryPage = isHomepage
+    || /^\/clusters\/[^/]+\/(summary|overview|topology|relations|runtime|meta)$/.test(location.pathname)
+    || /^\/clusters\/[^/]+\/meta\/[^/]+(?:\/[^/]+)?$/.test(location.pathname)
+    || isStorageOverviewLive
+    || isStorageConsoleLive
+    || isTopicQueryLive
+    || isConnectionQueryLive
+    || isConsumerQueryLive
+    || isOperationQueryLive;
   return (
     <footer className="statusbar">
       <span className="status-ok"><i />{isLiveQueryPage

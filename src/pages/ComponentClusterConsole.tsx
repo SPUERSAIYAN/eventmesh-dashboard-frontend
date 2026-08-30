@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { ApartmentOutlined, AppstoreOutlined, CheckCircleOutlined, CloudServerOutlined, ClusterOutlined, DatabaseOutlined, DeleteOutlined, ExclamationCircleOutlined, LinkOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
-import { App as AntApp, Button, Checkbox, Modal, Select, Tag } from "antd";
+import { Alert, App as AntApp, Button, Checkbox, Modal, Select, Spin, Tag } from "antd";
 import ReactECharts from "echarts-for-react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { mockClusters } from "../mock/mockClusterData";
 import { mockComponentClusters } from "../mock/mockClusterRelations";
@@ -12,8 +13,15 @@ import { ResourceTable } from "../components/ResourceTable";
 import { StatusBadge } from "../components/StatusBadge";
 import { useMockRelations, useMockWritableResources } from "../store/mockClusterStore";
 import { LifecycleActionButtons, LifecycleStatusBadge } from "../components/LifecycleControls";
-import { lifecycleTone } from "../mock/mockLifecycle";
+import { isDeployStatus, lifecycleLabel, lifecycleTone } from "../mock/mockLifecycle";
 import { useMockLifecycle } from "../store/mockLifecycleStore";
+import { dashboardRepository } from "../api/dashboardRepository";
+
+function deployStatusTone(status: unknown) {
+  if (!isDeployStatus(status)) return "unknown";
+  const tone = lifecycleTone(status);
+  return tone === "healthy" ? "healthy" : tone === "unknown" ? "unknown" : "warning";
+}
 
 function ComponentTrendChart({ kind }) {
   const option = useMemo(() => ({
@@ -41,29 +49,68 @@ export function MockComponentClusterConsole() {
   const [relationOpen, setRelationOpen] = useState(false);
   const [selectedEventMeshIds, setSelectedEventMeshIds] = useState<string[]>([]);
   const kind = componentType === "meta" ? "meta" : "runtime";
+  const metaDetailQuery = useQuery({
+    queryKey: ["dashboard", "meta-cluster-detail", clusterId, componentClusterId],
+    queryFn: async () => {
+      const result = await dashboardRepository.getMetaClusterList(clusterId);
+      const cluster = result.data.clusters.find((item) => item.id === componentClusterId || item.name === componentClusterId);
+      if (!cluster) throw new Error(`Meta 集群 ${componentClusterId} 未由后端返回`);
+      return { data: { cluster }, meta: result.meta };
+    },
+    enabled: kind === "meta" && Boolean(clusterId && componentClusterId),
+    retry: false,
+    refetchInterval: false,
+  });
   const config = COMPONENT_DEFINITIONS[kind];
   const activePanel = isComponentPanel(kind, panel) ? panel : "overview";
-  const baseComponent = mockComponentClusters.find((item) => item.id === componentClusterId && item.type === kind);
+  const liveMeta = kind === "meta" ? metaDetailQuery.data?.data.cluster : null;
+  const liveMetaComponent = liveMeta ? {
+    id: liveMeta.id,
+    name: liveMeta.name,
+    type: "meta",
+    description: liveMeta.description,
+    status: deployStatusTone(liveMeta.deployStatus),
+    deployStatus: liveMeta.deployStatus,
+    region: liveMeta.region,
+    version: liveMeta.version,
+    nodes: liveMeta.nodes.map((node) => ({
+      id: node.id,
+      name: node.name,
+      role: node.replicationType ?? node.raw?.role ?? "Meta 节点",
+      address: node.host ? `${node.host}${node.port ? `:${node.port}` : ""}` : "—",
+      status: deployStatusTone(node.deployStatus),
+      deployStatus: node.deployStatus,
+      latency: null,
+    })),
+  } : null;
+  const baseComponent = liveMetaComponent ?? mockComponentClusters.find((item) => item.id === componentClusterId && item.type === kind);
   const component = baseComponent ? { ...baseComponent, nodes: [...baseComponent.nodes, ...writableState.nodes.filter((item) => item.clusterId === baseComponent.id)] } : null;
   useEffect(() => {
     if (panel && !isComponentPanel(kind, panel) && component) navigate(componentClusterConsolePath(clusterId, kind, component.id), { replace: true });
   }, [clusterId, component, config.panels, kind, navigate, panel]);
+  if (kind === "meta" && metaDetailQuery.isPending) return <section className="panel mock-tab-panel mock-query-state"><Spin/><strong>正在查询 Meta 集群详情…</strong><span>正在加载集群、Meta 节点和 EventMesh 关联。</span></section>;
+  if (kind === "meta" && metaDetailQuery.isError) return <section className="panel storage-console-missing"><DatabaseOutlined/><h1>Meta 集群详情查询失败</h1><p>{metaDetailQuery.error?.message ?? "后端接口暂不可用"}</p><div className="storage-console-missing-actions"><Button onClick={() => navigate(`/clusters/${clusterId}/meta?section=clusters`)}>返回集群列表</Button><Button type="primary" onClick={() => metaDetailQuery.refetch()} loading={metaDetailQuery.isFetching}>重试</Button></div></section>;
   if (!component) return <section className="panel storage-console-missing">{kind === "runtime" ? <CloudServerOutlined /> : <DatabaseOutlined />}<h1>未找到{kind === "runtime" ? " Runtime" : " Meta"} 集群</h1><p>该集群不存在，或类型与访问路径不一致。</p><Button type="primary" onClick={() => navigate(`/clusters/${clusterId}/${kind}?section=clusters`)}>返回集群列表</Button></section>;
 
   const isRuntime = kind === "runtime";
   const kindName = config.label;
   const componentRelations = relations.filter((item) => item.componentClusterId === component.id);
-  const connectedEventMeshIds = new Set(componentRelations.map((item) => item.eventMeshClusterId));
+  const liveEventMeshRelations = liveMeta?.relatedEventMeshes ?? [];
+  const liveEventMeshRelationIds = new Set(liveEventMeshRelations.flatMap((item) => [item.id, item.routeId, item.name]));
+  const connectedEventMeshIds = new Set([
+    ...componentRelations.map((item) => item.eventMeshClusterId),
+    ...liveEventMeshRelations.flatMap((item) => [item.id, item.routeId, item.name]),
+  ]);
   const healthyNodes = component.nodes.filter((item) => item.status === "healthy").length;
   const runningRuntimeNodes = isRuntime ? component.nodes.filter((item) => lifecycleTone(statusOf("runtime", item.id)) === "healthy").length : healthyNodes;
   const runtimeTopics = ["codex-sim-order-created", "codex-sim-payment-status", "codex-sim-inventory-sync", "codex-sim-refund-events"].map((name, index) => ({ name, mode: index % 2 ? "广播订阅" : "集群订阅", subscribers: index + 2, rate: `${(18.6 - index * 2.4).toFixed(1)}K/s`, status: index === 3 ? "warning" : "healthy" }));
-  const connections = ["codex-sim-order-gateway", "codex-sim-payment-adapter", "codex-sim-inventory-service", "codex-sim-logistics-connector"].map((name, index) => ({ name, protocol: ["HTTP", "TCP", "HTTP", "MQTT"][index], instance: component.nodes[index % component.nodes.length], count: [238, 164, 126, 92][index], active: index ? `${index * 2 + 1} 秒前` : "刚刚", status: index === 3 ? "warning" : "healthy" }));
+  const connections = ["codex-sim-order-gateway", "codex-sim-payment-adapter", "codex-sim-inventory-service", "codex-sim-logistics-connector"].map((name, index) => ({ name, protocol: ["HTTP", "TCP", "HTTP", "MQTT"][index], instance: component.nodes[index % Math.max(component.nodes.length, 1)] ?? { name: "—" }, count: [238, 164, 126, 92][index], active: index ? `${index * 2 + 1} 秒前` : "刚刚", status: index === 3 ? "warning" : "healthy" }));
   const registeredRuntimeNodes = mockComponentClusters.filter((item) => item.type === "runtime").flatMap((item) => item.nodes.map((node) => ({ ...node, clusterName: item.name }))).slice(0, 8);
   const panelPath = (nextPanel) => componentClusterConsolePath(clusterId, kind, component.id, nextPanel);
   const primaryCell = (icon, name, detail) => <span className="storage-primary-cell">{icon}<span><strong>{name}</strong><small>{detail}</small></span></span>;
   const nodeRows = component.nodes.map((node, index) => {
     const deployStatus = isRuntime ? statusOf("runtime", node.id) : null;
-    return { key: node.id, search: `${node.name} ${node.address} ${node.role} ${deployStatus ?? node.status}`, cells: [primaryCell(isRuntime ? <CloudServerOutlined /> : <DatabaseOutlined />, node.name, node.id), node.role, node.address, isRuntime ? `${node.cpu ?? 0}% / ${node.memory ?? 0}%` : node.latency ?? `${7 + index} ms`, isRuntime ? node.rate ?? "0/s" : index === 0 ? "Leader" : "Follower", isRuntime ? <LifecycleStatusBadge status={deployStatus} /> : <StatusBadge value={node.status} className="storage-console-status" />, ...(isRuntime ? [<LifecycleActionButtons compact kind="runtime" resourceId={node.id} resourceName={node.name} status={deployStatus} />] : [])] };
+    return { key: node.id, search: `${node.name} ${node.address} ${node.role} ${deployStatus ?? node.status}`, cells: [primaryCell(isRuntime ? <CloudServerOutlined /> : <DatabaseOutlined />, node.name, node.id), node.role, node.address, isRuntime ? `${node.cpu ?? 0}% / ${node.memory ?? 0}%` : `${node.latency ?? `${7 + index} ms`} · Mock`, isRuntime ? node.rate ?? "0/s" : `${index === 0 ? "Leader" : "Follower"} · Mock`, isRuntime ? <LifecycleStatusBadge status={deployStatus} /> : <StatusBadge value={node.status} label={isDeployStatus(node.deployStatus)?lifecycleLabel(node.deployStatus):undefined} className="storage-console-status" />, ...(isRuntime ? [<LifecycleActionButtons compact kind="runtime" resourceId={node.id} resourceName={node.name} status={deployStatus} />] : [])] };
   });
   const connectionRows = connections.map((item) => ({ key: item.name, search: `${item.name} ${item.protocol} ${item.instance.name}`, cells: [primaryCell(<LinkOutlined />, item.name, "前端模拟客户端"), item.protocol, item.instance.name, item.count, item.active, <StatusBadge value={item.status} className="storage-console-status" />] }));
   const topicRows = runtimeTopics.map((item) => ({ key: item.name, search: `${item.name} ${item.mode}`, cells: [primaryCell(<AppstoreOutlined />, item.name, "EventMesh Topic"), item.mode, item.subscribers, item.rate, <StatusBadge value={item.status} className="storage-console-status" />] }));
@@ -76,22 +123,28 @@ export function MockComponentClusterConsole() {
     okButtonProps: { danger: true },
     onOk: () => { removeRelation(relation.id); message.success("Meta 主动关联已解除"); },
   });
-  const relationRows = componentRelations.map((relation) => {
+  const liveRelationRows = liveEventMeshRelations.map((eventMesh) => ({
+    key: `live-${eventMesh.id}`,
+    search: `${eventMesh.name} ${eventMesh.description} ${eventMesh.region}`,
+    cells: [primaryCell(<ClusterOutlined />, eventMesh.name, eventMesh.description), "Meta 集群 → EventMesh", <span className="storage-console-status healthy"><LinkOutlined />关联已返回 · Live</span>, "后端未返回", <Button type="link" onClick={() => navigate(`/clusters/${eventMesh.routeId}/topology`)}>查看拓扑</Button>],
+  }));
+  const mockRelationRows = componentRelations.filter((relation) => !liveEventMeshRelationIds.has(relation.eventMeshClusterId)).map((relation) => {
     const eventMesh = mockClusters.find((item) => item.id === relation.eventMeshClusterId);
     const eventMeshName = eventMesh?.name ?? relation.eventMeshClusterId;
-    return { key: relation.id, search: `${relation.eventMeshClusterId} ${eventMesh?.description ?? ""}`, cells: [primaryCell(<ClusterOutlined />, eventMeshName, eventMesh?.description ?? "复制或外部 EventMesh 集群"), isRuntime ? `EventMesh → ${kindName} 集群` : "Meta 集群 → EventMesh", <span className="storage-console-status healthy"><LinkOutlined />关联生效</span>, new Date(relation.createdAt).toLocaleString("zh-CN", { hour12: false }), isRuntime ? <Button type="link" onClick={() => navigate(`/clusters/${relation.eventMeshClusterId}/topology`)}>查看拓扑</Button> : <span className="row-action-buttons"><Button type="link" onClick={() => navigate(`/clusters/${relation.eventMeshClusterId}/topology`)}>查看拓扑</Button><Button type="link" danger icon={<DeleteOutlined />} onClick={() => detachMetaRelation(relation, eventMeshName)}>解除</Button></span>] };
+    return { key: relation.id, search: `${relation.eventMeshClusterId} ${eventMesh?.description ?? ""}`, cells: [primaryCell(<ClusterOutlined />, eventMeshName, eventMesh?.description ?? "复制或外部 EventMesh 集群"), isRuntime ? `EventMesh → ${kindName} 集群` : "Meta 集群 → EventMesh", <span className="storage-console-status healthy"><LinkOutlined />关联生效 · Mock</span>, new Date(relation.createdAt).toLocaleString("zh-CN", { hour12: false }), isRuntime ? <Button type="link" onClick={() => navigate(`/clusters/${relation.eventMeshClusterId}/topology`)}>查看拓扑</Button> : <span className="row-action-buttons"><Button type="link" onClick={() => navigate(`/clusters/${relation.eventMeshClusterId}/topology`)}>查看拓扑</Button><Button type="link" danger icon={<DeleteOutlined />} onClick={() => detachMetaRelation(relation, eventMeshName)}>解除</Button></span>] };
   });
+  const relationRows = isRuntime ? mockRelationRows : [...liveRelationRows, ...mockRelationRows];
   const openMetaRelation = () => { setSelectedEventMeshIds([]); setRelationOpen(true); };
   const attachMetaRelations = () => {
-    selectedEventMeshIds.forEach((eventMeshId) => addRelations(eventMeshId, [component.id]));
+    selectedEventMeshIds.forEach((eventMeshId) => addRelations(eventMeshId, [component.id], "meta"));
     message.success(`已由 ${component.name} 主动建立 ${selectedEventMeshIds.length} 条关联`);
     setRelationOpen(false);
   };
 
   const overview = <div className="storage-console-overview"><section className="storage-console-metrics">
     {isRuntime ? <><div><span>Runtime 实例</span><strong>{runningRuntimeNodes} / {component.nodes.length}</strong><small>运行中 / 总数</small></div><div><span>客户端连接</span><strong>12.4K</strong><small>全部实例合计</small></div><div><span>Topic</span><strong>{runtimeTopics.length}</strong><small>{runtimeTopics.reduce((sum, item) => sum + item.subscribers, 0)} 个订阅</small></div><div><span>消息流入</span><strong>78.0K/s</strong><small>前端模拟速率</small></div><div><span>平均 CPU</span><strong>{Math.round(component.nodes.reduce((sum, node) => sum + (node.cpu ?? 0), 0) / component.nodes.length)}%</strong><small>集群资源使用率</small></div></>
-      : <><div><span>Meta 节点</span><strong>{healthyNodes} / {component.nodes.length}</strong><small>正常 / 总数</small></div><div><span>Leader</span><strong>1</strong><small>选举状态正常</small></div><div><span>已注册 Runtime</span><strong>{registeredRuntimeNodes.length}</strong><small>来自 3 套集群</small></div><div><span>发现请求</span><strong>111/s</strong><small>前端模拟速率</small></div><div><span>平均延迟</span><strong>8 ms</strong><small>注册与发现请求</small></div></>}
-  </section><div className="storage-console-overview-grid"><section className="panel storage-console-chart"><div className="storage-console-section-title"><div><h2>{isRuntime ? "消息处理趋势" : "注册与发现趋势"}</h2><p>{isRuntime ? "最近 2 小时消息流入与流出速率" : "最近 2 小时注册和服务发现请求"}</p></div><Select defaultValue="2h" options={[{ value: "2h", label: "最近 2 小时" }, { value: "24h", label: "最近 24 小时" }]} /></div><ComponentTrendChart kind={kind} /></section><section className="panel storage-console-facts"><div className="storage-console-section-title"><div><h2>集群信息</h2><p>{kindName} 集群的部署与关联信息</p></div>{isRuntime ? <CloudServerOutlined /> : <DatabaseOutlined />}</div><dl><div><dt>集群类型</dt><dd>{kindName}</dd></div><div><dt>版本</dt><dd>{component.version}</dd></div><div><dt>地域</dt><dd>{component.region}</dd></div><div><dt>{isRuntime?"关联 EventMesh":"主动关联 EventMesh"}</dt><dd>{componentRelations.length} 个</dd></div><div><dt>{isRuntime ? "接入协议" : "协调模式"}</dt><dd>{isRuntime ? "HTTP · TCP · MQTT" : "Leader / Follower"}</dd></div></dl></section></div><section className="panel storage-console-health"><div className="storage-console-section-title"><div><h2>运行状态</h2><p>{isRuntime ? "实例、连接和订阅的关键检查" : "节点、选举和注册信息的关键检查"}</p></div></div><div><span><CheckCircleOutlined /><small>节点可用性</small><strong>{healthyNodes} / {component.nodes.length}</strong><em>集群可正常服务</em></span><span><CheckCircleOutlined /><small>{isRuntime ? "路由状态" : "Leader 状态"}</small><strong>正常</strong><em>{isRuntime ? "消息路由可用" : "选举保持稳定"}</em></span><span><CheckCircleOutlined /><small>{isRuntime ? "活跃连接" : "注册有效率"}</small><strong>{isRuntime ? "12.4K" : "100%"}</strong><em>{isRuntime ? "连接分布均衡" : "无过期实例"}</em></span><span className="warning"><ExclamationCircleOutlined /><small>{isRuntime ? "订阅积压" : "发现延迟"}</small><strong>{isRuntime ? "8.4K" : "12 ms"}</strong><em>{isRuntime ? "codex-sim-payment-workers" : "P99 需关注"}</em></span></div></section></div>;
+      : <><div><span>Meta 节点 · Live</span><strong>{healthyNodes} / {component.nodes.length}</strong><small>运行部署状态 / 总数</small></div><div><span>Leader · Mock</span><strong>1</strong><small>后端未返回选举角色</small></div><div><span>已注册 Runtime · Mock</span><strong>{registeredRuntimeNodes.length}</strong><small>后端暂无注册表查询</small></div><div><span>发现请求 · Mock</span><strong>111/s</strong><small>前端模拟速率</small></div><div><span>平均延迟 · Mock</span><strong>8 ms</strong><small>后端暂无健康指标</small></div></>}
+  </section><div className="storage-console-overview-grid"><section className="panel storage-console-chart"><div className="storage-console-section-title"><div><h2>{isRuntime ? "消息处理趋势" : "注册与发现趋势 · Mock"}</h2><p>{isRuntime ? "最近 2 小时消息流入与流出速率" : "后端暂无 Meta 注册与发现指标，当前展示前端模拟趋势"}</p></div><Select defaultValue="2h" options={[{ value: "2h", label: "最近 2 小时" }, { value: "24h", label: "最近 24 小时" }]} /></div><ComponentTrendChart kind={kind} /></section><section className="panel storage-console-facts"><div className="storage-console-section-title"><div><h2>集群信息 · {isRuntime?"Mock":"Live"}</h2><p>{kindName} 集群的部署与关联信息</p></div>{isRuntime ? <CloudServerOutlined /> : <DatabaseOutlined />}</div><dl><div><dt>集群类型</dt><dd>{kindName}</dd></div><div><dt>版本</dt><dd>{component.version}</dd></div><div><dt>地域</dt><dd>{component.region}</dd></div><div><dt>{isRuntime?"关联 EventMesh":"主动关联 EventMesh"}</dt><dd>{isRuntime?componentRelations.length:relationRows.length} 个</dd></div><div><dt>{isRuntime ? "接入协议" : "协调模式 · Mock"}</dt><dd>{isRuntime ? "HTTP · TCP · MQTT" : "Leader / Follower"}</dd></div></dl></section></div><section className="panel storage-console-health"><div className="storage-console-section-title"><div><h2>{isRuntime?"运行状态":"运行状态 · Live + Mock"}</h2><p>{isRuntime ? "实例、连接和订阅的关键检查" : "节点数量与部署状态来自后端，其余检查为前端模拟"}</p></div></div><div><span><CheckCircleOutlined /><small>{isRuntime?"节点可用性":"运行部署节点 · Live"}</small><strong>{healthyNodes} / {component.nodes.length}</strong><em>{isRuntime?"集群可正常服务":"依据 DeployStatusType"}</em></span><span><CheckCircleOutlined /><small>{isRuntime ? "路由状态" : "Leader 状态 · Mock"}</small><strong>正常</strong><em>{isRuntime ? "消息路由可用" : "后端未返回选举状态"}</em></span><span><CheckCircleOutlined /><small>{isRuntime ? "活跃连接" : "注册有效率 · Mock"}</small><strong>{isRuntime ? "12.4K" : "100%"}</strong><em>{isRuntime ? "连接分布均衡" : "后端暂无注册表查询"}</em></span><span className="warning"><ExclamationCircleOutlined /><small>{isRuntime ? "订阅积压" : "发现延迟 · Mock"}</small><strong>{isRuntime ? "8.4K" : "12 ms"}</strong><em>{isRuntime ? "codex-sim-payment-workers" : "后端暂无健康指标"}</em></span></div></section></div>;
 
   const panels = isRuntime ? {
     overview,
@@ -101,10 +154,10 @@ export function MockComponentClusterConsole() {
     relations: <ResourceTable title="关联 EventMesh" description="当前 Runtime 集群被哪些 EventMesh 集群使用" columns={["EventMesh 集群", "关系", "状态", "建立时间", "操作"]} rows={relationRows} searchPlaceholder="搜索 EventMesh 集群" />,
   } : {
     overview,
-    nodes: <ResourceTable title="Meta 节点" description={`查看 ${component.name} 中的协调节点`} columns={["Meta 节点", "角色", "地址", "延迟", "选举角色", "状态"]} rows={nodeRows} searchPlaceholder="搜索 Meta 节点或地址" action={<Button type="primary" icon={<PlusOutlined/>} onClick={()=>setCreateNodeOpen(true)}>添加 Meta 节点</Button>} />,
-    registry: <ResourceTable title="注册信息" description="当前 Meta 集群中注册的 Runtime 实例" columns={["Runtime", "来源集群", "地址", "注册类型", "续约周期", "状态"]} rows={registryRows} searchPlaceholder="搜索 Runtime、集群或地址" />,
-    relations: <ResourceTable title="主动关联 EventMesh" description="由当前 Meta 集群发起并维护的 EventMesh 关联" columns={["EventMesh 集群", "关系方向", "状态", "建立时间", "操作"]} rows={relationRows} searchPlaceholder="搜索 EventMesh 集群" action={<Button type="primary" icon={<LinkOutlined />} onClick={openMetaRelation}>关联 EventMesh</Button>} />,
+    nodes: <ResourceTable title="Meta 节点 · Live" description={`后端返回的 ${component.name} 协调节点；延迟和选举角色暂无真实数据`} columns={["Meta 节点", "角色", "地址", "延迟", "选举角色", "部署状态"]} rows={nodeRows} searchPlaceholder="搜索 Meta 节点或地址" action={<Button type="primary" icon={<PlusOutlined/>} onClick={()=>setCreateNodeOpen(true)}>添加 Meta 节点 · Mock</Button>} />,
+    registry: <ResourceTable title="注册信息 · Mock" description="后端暂无稳定的 Meta Runtime 注册表查询接口" columns={["Runtime", "来源集群", "地址", "注册类型", "续约周期", "状态"]} rows={registryRows} searchPlaceholder="搜索 Runtime、集群或地址" />,
+    relations: <ResourceTable title="主动关联 EventMesh · Live + Mock" description="查询关系来自后端关联树；创建与解除仍为前端 Mock" columns={["EventMesh 集群", "关系方向", "状态", "建立时间", "操作"]} rows={relationRows} searchPlaceholder="搜索 EventMesh 集群" action={<Button type="primary" icon={<LinkOutlined />} onClick={openMetaRelation}>关联 EventMesh · Mock</Button>} />,
   };
 
-  return <div className="page storage-cluster-console"><section className="storage-console-hero"><div><button onClick={() => navigate(`/clusters/${clusterId}/${kind}?section=clusters`)}>{kindName} 集群 / 集群列表 /</button><div><h1>{component.name}</h1><StatusBadge value={component.status} className="storage-console-status" /><Tag className="mock-source-tag">MOCK DATA</Tag></div><p>{component.description}</p><span>{kindName} {component.version} · {component.region} · {component.nodes.length} {isRuntime ? "Instances" : "Nodes"}</span></div><div className="storage-console-actions"><Button icon={<ReloadOutlined />}>刷新</Button><Button type="primary" icon={<ApartmentOutlined />} onClick={() => navigate(`/clusters/${clusterId}/topology?node=cluster-${component.id}`)}>查看拓扑</Button></div></section><nav className="storage-console-tabs" aria-label={`${kindName} 控制台导航`}>{config.panels.map((item) => <button key={item} className={item === activePanel ? "active" : ""} onClick={() => navigate(panelPath(item))}>{config.panelLabels[item]}</button>)}</nav>{panels[activePanel]}<CreateNodeModal open={createNodeOpen} onClose={()=>setCreateNodeOpen(false)} kind={kind} cluster={component} existingNames={component.nodes.map((item)=>item.name)} onCreate={addNode}/>{!isRuntime&&<Modal className="mock-relation-modal" width={680} title="Meta 主动关联 EventMesh" open={relationOpen} onCancel={()=>setRelationOpen(false)} onOk={attachMetaRelations} okText="建立关联" cancelText="取消" okButtonProps={{disabled:!selectedEventMeshIds.length}}><div className="mock-flow-note"><LinkOutlined/><div><strong>关系由 Meta 集群发起</strong><span>选择当前 Meta 集群需要关联的 EventMesh；已建立的关系不会重复添加。</span></div></div><Checkbox.Group value={selectedEventMeshIds} onChange={(values)=>setSelectedEventMeshIds(values as string[])} options={mockClusters.map((item)=>({value:item.id,disabled:connectedEventMeshIds.has(item.id),label:<span className="relation-option-copy"><b>{item.name}</b><small>{item.region} · {connectedEventMeshIds.has(item.id)?"已关联":"可关联"}</small></span>}))}/></Modal>}</div>;
+  return <div className="page storage-cluster-console"><section className="storage-console-hero"><div><button onClick={() => navigate(`/clusters/${clusterId}/${kind}?section=clusters`)}>{kindName} 集群 / 集群列表 /</button><div><h1>{component.name}</h1><StatusBadge value={component.status} label={liveMeta&&isDeployStatus(liveMeta.deployStatus)?lifecycleLabel(liveMeta.deployStatus):undefined} className="storage-console-status" /><Tag className="mock-source-tag">{liveMeta?"LIVE + MOCK":"MOCK DATA"}</Tag></div><p>{component.description}</p><span>{kindName} {component.version} · {component.region} · {component.nodes.length} {isRuntime ? "Instances" : "Nodes"}</span></div><div className="storage-console-actions"><Button icon={<ReloadOutlined />} onClick={liveMeta?()=>metaDetailQuery.refetch():undefined} loading={liveMeta&&metaDetailQuery.isFetching}>刷新</Button><Button type="primary" icon={<ApartmentOutlined />} onClick={() => navigate(`/clusters/${clusterId}/topology?node=cluster-${component.id}`)}>查看拓扑</Button></div></section>{liveMeta&&metaDetailQuery.data.meta.warnings.length>0&&<Alert className="mock-list-warning" type="warning" showIcon message="部分 Meta 详情数据暂不可用" description={metaDetailQuery.data.meta.warnings.join("；")}/>}<nav className="storage-console-tabs" aria-label={`${kindName} 控制台导航`}>{config.panels.map((item) => <button key={item} className={item === activePanel ? "active" : ""} onClick={() => navigate(panelPath(item))}>{config.panelLabels[item]}</button>)}</nav>{panels[activePanel]}<CreateNodeModal open={createNodeOpen} onClose={()=>setCreateNodeOpen(false)} kind={kind} cluster={component} existingNames={component.nodes.map((item)=>item.name)} onCreate={addNode}/>{!isRuntime&&<Modal className="mock-relation-modal" width={680} title="Meta 主动关联 EventMesh · Mock" open={relationOpen} onCancel={()=>setRelationOpen(false)} onOk={attachMetaRelations} okText="建立关联" cancelText="取消" okButtonProps={{disabled:!selectedEventMeshIds.length}}><div className="mock-flow-note"><LinkOutlined/><div><strong>关系由 Meta 集群发起</strong><span>该写操作仅保存在前端 Mock；已由后端关联树返回的关系不会重复添加。</span></div></div><Checkbox.Group value={selectedEventMeshIds} onChange={(values)=>setSelectedEventMeshIds(values as string[])} options={mockClusters.map((item)=>({value:item.id,disabled:connectedEventMeshIds.has(item.id),label:<span className="relation-option-copy"><b>{item.name}</b><small>{item.region} · {connectedEventMeshIds.has(item.id)?"已关联":"可关联"}</small></span>}))}/></Modal>}</div>;
 }

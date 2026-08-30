@@ -17,6 +17,7 @@ import {
   defaultWritableResourceState,
   normalizeWritableResourceState,
 } from "../mock/mockWritableResources";
+import type { ComponentClusterType } from "../mock/mockClusterRelations";
 
 export type MockClusterStoreState = {
   relations: MockRelationState;
@@ -63,7 +64,7 @@ function updateResources(producer: (current: MockClusterStoreState["resources"])
 export const mockClusterStore = {
   getState: () => state,
   subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
-  addRelations(eventMeshClusterId: string, componentIds: string[]) { updateRelations((current) => addClusterRelations(current, eventMeshClusterId, componentIds)); },
+  addRelations(eventMeshClusterId: string, componentIds: string[], componentType?: ComponentClusterType) { updateRelations((current) => addClusterRelations(current, eventMeshClusterId, componentIds, new Date().toISOString(), componentType)); },
   removeRelation(relationId: string) { updateRelations((current) => removeClusterRelation(current, relationId)); },
   inheritRelations(sourceId: string, targetId: string) { updateRelations((current) => inheritClusterRelations(current, sourceId, targetId)); },
   addNode(item: unknown) { updateResources((current) => addWritableNode(current, item)); },
