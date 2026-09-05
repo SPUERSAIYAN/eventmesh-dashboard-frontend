@@ -51,3 +51,17 @@
 
 /* DeployStatusType lifecycle controls */
 .lifecycle-status{display:inline-flex;align-items:center;gap:7px;min-width:116px;padding-inline-start:8px;border-inline-start:1px solid currentColor;font-weight:600;white-space:nowrap}.lifecycle-status>.anticon{flex:0 0 auto;font-size:14px}.lifecycle-status>span{display:grid;gap:2px}.lifecycle-status strong{font-size:12px;line-height:1.2}.lifecycle-status small,.lifecycle-enum-value{color:#64768a;font-family:'Geist Mono Variable',monospace;font-size:9px;font-weight:500;letter-spacing:.1px}.lifecycle-status.healthy{color:#2c7568}.lifecycle-status.warning{color:#9a5b00}.lifecycle-status.abnormal{color:#a9433c}.lifecycle-status.unknown{color:#64768a}.lifecycle-actions{display:inline-flex;align-items:center;gap:6px}.lifecycle-actions.compact{gap:0}.lifecycle-actions.compact .ant-btn{padding-inline:5px}.mock-cluster-table{min-width:1240px}.mock-cluster-table th:last-child{width:205px}.row-action-buttons{align-items:center;flex-wrap:nowrap}.mock-detail-actions{align-items:center;flex-wrap:wrap}.mock-detail-actions>.lifecycle-actions{margin-inline-end:2px}.lifecycle-enum-value{font-size:10px;color:#526a82}
+
+/* Live lifecycle feedback starts only after a persistence receipt or backend state. */
+.homepage-lifecycle-feedback{display:inline-flex;align-items:center;gap:7px;min-width:108px;padding-inline:5px;color:var(--ali-orange,#225aa0);font-size:12px;font-weight:500;white-space:nowrap;animation:homepage-lifecycle-arrive 180ms ease-out}
+.homepage-lifecycle-dots{display:inline-flex;align-items:center;gap:3px;flex:none}
+.homepage-lifecycle-dots i{display:block;width:4px;height:4px;border-radius:50%;background:currentColor;animation:homepage-lifecycle-dot 1200ms ease-in-out infinite}
+.homepage-lifecycle-dots i:nth-child(2){animation-delay:160ms}
+.homepage-lifecycle-dots i:nth-child(3){animation-delay:320ms}
+.homepage-lifecycle-pending .lifecycle-status{color:var(--ali-orange,#225aa0)}
+@keyframes homepage-lifecycle-dot{0%,70%,100%{opacity:.35;transform:translateY(0)}35%{opacity:1;transform:translateY(-2px)}}
+@keyframes homepage-lifecycle-arrive{from{opacity:.4}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){
+  .homepage-lifecycle-feedback,.homepage-lifecycle-dots i,.homepage-lifecycle-pending .anticon-loading,.homepage-lifecycle-pending .anticon-spin,.homepage-lifecycle-pending .anticon-loading svg{animation:none!important}
+  .homepage-lifecycle-dots i{opacity:1}
+}

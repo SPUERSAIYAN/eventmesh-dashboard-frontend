@@ -88,7 +88,7 @@ export function mergeHomepageClusters(entities: any[], metricMocks: any[] = [], 
 }
 
 export function resolveHomepageDeployStatus(cluster: any, lifecycleStatuses: Record<string, any> = {}) {
-  const local = lifecycleStatuses[`cluster:${cluster.id}`]?.status;
+  const local = cluster.isMock ? lifecycleStatuses[`cluster:${cluster.id}`]?.status : undefined;
   return {
     value: local ?? cluster.backendDeployStatus,
     simulated: Boolean(local) || Boolean(cluster.isMock),

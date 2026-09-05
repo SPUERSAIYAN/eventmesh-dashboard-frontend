@@ -179,7 +179,7 @@ function StatusBar() {
   return (
     <footer className="statusbar">
       <span className="status-ok"><i />{isLiveQueryPage
-        ? (language === "zh" ? "混合数据模式 · 查询已连接后端，未接入字段与写操作为 Mock" : "Mixed data mode · backend queries connected; unavailable fields and writes remain Mock")
+        ? (language === "zh" ? "混合数据模式 · 首页暂停、恢复、注销已接入后端，其余模拟操作标注 Mock" : "Mixed data mode · homepage lifecycle requests connected; other simulated actions marked Mock")
         : (language === "zh" ? "模拟数据模式 · 详情页未连接后端" : "Mock data mode · detail backend disconnected")}</span>
       <span className="local-time">{t("Local time")}&nbsp;&nbsp; {now.toLocaleString(locale, { hour12: false, timeZoneName: "short" })}</span>
       <button onClick={refresh}><ReloadOutlined spin={refreshing} /> {t("Refresh")}&nbsp; {isHomepage ? (language === "zh" ? "手动" : "Manual") : "10s"}</button><DownOutlined />

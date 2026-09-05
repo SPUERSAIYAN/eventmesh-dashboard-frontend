@@ -61,11 +61,15 @@ test("appends copied mock clusters without replacing live rows", () => {
   assert.equal(result.all[1].isMock, true);
 });
 
-test("uses backend status until a local simulated operation exists", () => {
+test("ignores stale local mock statuses for live clusters", () => {
   const cluster = mapHomepageCluster(entity);
   assert.deepEqual(resolveHomepageDeployStatus(cluster), { value: "PAUSE_SUCCESS", simulated: false });
   assert.deepEqual(resolveHomepageDeployStatus(cluster, { "cluster:1001": { status: "RESET_SUCCESS" } }), {
-    value: "RESET_SUCCESS",
-    simulated: true,
+    value: "PAUSE_SUCCESS",
+    simulated: false,
   });
+});
+
+ test("retains local lifecycle state for copied mock clusters", () => {
+  assert.deepEqual(resolveHomepageDeployStatus({ id: "copy-1", isMock: true, backendDeployStatus: "CREATE_SUCCESS" }, { "cluster:copy-1": { status: "PAUSE_SUCCESS" } }), { value: "PAUSE_SUCCESS", simulated: true });
 });
