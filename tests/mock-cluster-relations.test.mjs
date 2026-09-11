@@ -6,7 +6,7 @@ import {
   inheritClusterRelations,
   normalizeMockRelationState,
   removeClusterRelation,
-} from "../src/mockClusterRelations.ts";
+} from "../src/mock/mockClusterRelations.ts";
 
 test("falls back to seeded versioned relation state", () => {
   const fallback = normalizeMockRelationState({ version: 0, relations: [] });

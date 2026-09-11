@@ -16,8 +16,7 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx"
+    "noEmit": true
   },
-  "include": ["src"]
+  "include": ["src/**/*.ts", "src/**/*.vue", "src/env.d.ts"]
 }

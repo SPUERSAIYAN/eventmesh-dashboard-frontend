@@ -8,6 +8,13 @@ When implementing from a selected generated mock, treat that image as the source
 
 Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts/prepare-sites-build.mjs`, and `tests/sites-worker.test.mjs` intact so the same local prototype can be handed to Sites. Before a Sites handoff, run `npm run build` and `npm run test:sites`; the build must leave `dist/client/index.html`, `dist/server/index.js`, and `dist/.openai/hosting.json`.
 
+## Frontend stack boundary
+
+- Use Vue 3 with Composition API and `<script setup lang="ts">` for all application UI. Do not add React, JSX/TSX pages, React adapters, or mixed-framework mounting.
+- Use `tdesign-vue-next` and `tdesign-icons-vue-next` as the only UI component and icon libraries. Do not add Ant Design or another component library.
+- Use AntV G2 for statistical/trend charts and AntV G6 for relationship topology. Do not add ECharts or another visualization library.
+- Pinia, Vue Query, Axios, Zod, and font packages remain infrastructure dependencies rather than UI libraries. New features must be implemented directly on this Vue + TDesign + AntV architecture.
+
 ## Backend dependency and change boundary
 
 - Integrate backend data one page at a time. Each task may modify backend integration only for the page explicitly named by the user; do not connect, refactor, or otherwise change backend integration on any other page unless the user separately requests that page. For implementation summaries and completion reports, describe only the current page unless the user explicitly asks for a broader rollup.
@@ -30,7 +37,7 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Use an Alibaba Cloud-like neutral console system grounded in the real EventMesh logo: white, near-black, and cool gray surfaces with EventMesh deep blue `#225aa0` as the primary accent for actions, active navigation, focused links, and attention markers. Keep the logo's lighter cyan `#4cb6d4` secondary and sparse; do not use gradients.
 - Use bright black `#1f1f1f` for primary interface text and headings; preserve muted slate colors for secondary descriptions, metadata, and disabled content so hierarchy remains clear.
 - Replace flat neutral gray backgrounds and borders with a restrained cloud-mist palette: page `#f2f7fc`, soft surfaces `#f8fbfe`, blue-gray border `#d4e1ef`, slate secondary text `#5f7388`, and slate primary text `#203247`. Keep content panels white and avoid turning every surface blue.
-- Use a restrained operational status system that works with the cloud-mist palette: normal teal `#2c7568`, warning amber `#9a5b00`, abnormal brick red `#a9433c`, and unknown slate `#64768a`. Pair every state with a distinct Ant Design icon, text label, and structural cue such as a left rule or card top border; never rely on color alone.
+- Use a restrained operational status system that works with the cloud-mist palette: normal teal `#2c7568`, warning amber `#9a5b00`, abnormal brick red `#a9433c`, and unknown slate `#64768a`. Pair every state with a distinct TDesign icon, text label, and structural cue such as a left rule or card top border; never rely on color alone.
 - Use Space Grotesk Variable for the console interface and Geist Mono Variable for cluster IDs, addresses, versions, rates, timestamps, configuration values, and other technical data. Retain `PingFang SC` and `Microsoft YaHei` as Chinese glyph fallbacks.
 - Keep console pages dense and task-driven. Prefer flat sections, dividers, tables, and master-detail layouts over card grids, nested cards, symmetric metric rows, decorative charts, large welcome copy, gradients, glass effects, colored pills, and marketing-style whitespace.
 - Distinguish status using icons, text, shape, and gray intensity. Do not use a red/yellow/blue/green status palette.

@@ -1,0 +1,7 @@
+<template><section class="panel data-panel"><header><div><h2>{{ title }}</h2><p>{{ description }}</p></div><div class="panel-actions"><t-input v-if="searchable" v-model="query" clearable :placeholder="searchPlaceholder || '搜索'" /><slot name="toolbar" /></div></header><t-table row-key="id" :data="filtered" :columns="columns" :loading="loading" stripe hover table-layout="auto"><template v-for="(_, name) in $slots" #[name]="scope"><slot v-if="name !== 'toolbar'" :name="name" v-bind="scope" /></template></t-table><PageState v-if="!loading && filtered.length === 0" type="empty" title="暂无数据" /></section></template>
+<script setup lang="ts">
+import { computed, ref } from "vue"; import PageState from "./PageState.vue";
+const props = withDefaults(defineProps<{ title: string; description?: string; data: any[]; columns: any[]; loading?: boolean; searchable?: boolean; searchPlaceholder?: string }>(), { data: () => [], columns: () => [], searchable: true });
+defineSlots<{ toolbar(props:{}):any; name(props:{row?:any}):any; cluster(props:{row?:any}):any; deployStatus(props:{row?:any}):any; hosting(props:{row?:any}):any; nodes(props:{row?:any}):any; resources(props:{row?:any}):any; rates(props:{row?:any}):any; region(props:{row?:any}):any; status(props:{row?:any}):any; actions(props:{row?:any}):any }>();
+const query = ref(""); const filtered = computed(() => !query.value ? props.data : props.data.filter((row: any) => JSON.stringify(row).toLowerCase().includes(query.value.toLowerCase())));
+</script>

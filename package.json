@@ -5,31 +5,35 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "typecheck": "tsc --noEmit",
-    "build": "vite build && node scripts/prepare-sites-build.mjs",
+    "typecheck": "vue-tsc --noEmit",
+    "check:architecture": "node scripts/check-frontend-stack.mjs",
+    "build": "npm run typecheck && npm run check:architecture && vite build && node scripts/prepare-sites-build.mjs",
     "preview": "vite preview",
     "test": "node --test tests/*.test.mjs",
     "test:sites": "node --test tests/sites-worker.test.mjs"
   },
   "dependencies": {
-    "@ant-design/icons": "^6.3.2",
+    "@antv/g2": "5.4.8",
+    "@antv/g6": "5.1.1",
     "@fontsource-variable/geist-mono": "^5.3.0",
     "@fontsource-variable/space-grotesk": "^5.3.0",
-    "@tanstack/react-query": "^5.101.4",
-    "@vitejs/plugin-react": "5.0.4",
-    "antd": "^6.6.0",
+    "@tanstack/vue-query": "5.102.8",
     "axios": "^1.19.0",
-    "echarts": "^6.1.0",
-    "echarts-for-react": "^3.0.6",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "react-router-dom": "^7.18.2",
+    "pinia": "3.0.4",
+    "tdesign-icons-vue-next": "0.4.9",
+    "tdesign-vue-next": "1.20.7",
     "vite": "6.4.2",
+    "vue": "3.5.42",
+    "vue-router": "4.6.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "typescript": "^5.9.0"
+    "@playwright/test": "1.63.0",
+    "@vitejs/plugin-vue": "5.2.4",
+    "@vue/test-utils": "2.5.0",
+    "jsdom": "26.1.0",
+    "typescript": "^5.9.0",
+    "vitest": "3.2.7",
+    "vue-tsc": "3.3.11"
   }
 }

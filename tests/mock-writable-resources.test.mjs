@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { addWritableConsumer, addWritableNode, addWritablePhysicalTopic, addWritableTopic, defaultWritableResourceState, ensureSimName, normalizeWritableResourceState } from "../src/mockWritableResources.ts";
+import { addWritableConsumer, addWritableNode, addWritablePhysicalTopic, addWritableTopic, defaultWritableResourceState, ensureSimName, normalizeWritableResourceState } from "../src/mock/mockWritableResources.ts";
 
 test("falls back from damaged writable mock state", () => {
   assert.deepEqual(normalizeWritableResourceState({ version: 0, nodes: [1] }), defaultWritableResourceState());
